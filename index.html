@@ -816,7 +816,15 @@ body.exam-lock #profile-btn{opacity:.5;}
 /* rascunho */
 .scratch-panel{position:fixed; right:16px; top:80px; width:min(460px,46vw); height:calc(100vh - 100px); z-index:250; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:var(--shadow); overflow:hidden;}
 .scratch-panel[hidden]{display:none;}
-.sp-head{display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); font-size:13.5px;}
+.sp-head{display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); font-size:13.5px; cursor:move; touch-action:none; user-select:none;}
+.scratch-panel.docked .sp-head{cursor:default;}
+.sp-head>b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+.sp-resize{position:absolute; right:0; bottom:0; width:22px; height:22px; cursor:nwse-resize; touch-action:none; background:linear-gradient(135deg, transparent 50%, var(--border) 50%, var(--border) 60%, transparent 60%, transparent 70%, var(--border) 70%, var(--border) 80%, transparent 80%);}
+.scratch-panel.maxed{left:3vw; right:3vw; top:5vh; bottom:3vh; width:auto; height:auto; z-index:260;}
+.scratch-panel.docked{top:0; right:0; bottom:0; left:auto; width:var(--scratch-w,42vw); height:auto; border-radius:0; border-width:0 0 0 1px;}
+.scratch-panel.docked .sp-resize{left:0; top:0; bottom:0; right:auto; width:10px; height:auto; cursor:ew-resize; background:none;}
+.scratch-panel.docked .sp-resize:hover{background:var(--primary-soft);}
+body.scratch-docked .main{padding-right:var(--scratch-w,42vw);}
 .sp-tools{margin-left:auto; display:flex; gap:4px; align-items:center;}
 .sp-tools button{min-width:30px; height:30px; border-radius:8px; border:1px solid transparent; background:transparent; cursor:pointer; color:var(--text); font-size:14px;}
 .sp-tools button.active{background:var(--primary-soft); border-color:var(--primary);}
@@ -831,6 +839,10 @@ body.exam-lock #profile-btn{opacity:.5;}
   .answer-sheet.open{display:block;}
   .exam-paper{padding:22px 18px;}
   .scratch-panel{left:8px; right:8px; width:auto; top:auto; bottom:72px; height:52vh;}
+  .scratch-panel.docked{left:0; right:0; top:auto; bottom:72px; width:auto; height:var(--scratch-h,45vh); border-width:1px 0 0 0;}
+  .scratch-panel.docked .sp-resize{left:0; right:0; top:0; bottom:auto; width:auto; height:12px; cursor:ns-resize;}
+  .scratch-panel.maxed{left:6px; right:6px; top:66px; bottom:76px;}
+  body.scratch-docked .main{padding-right:0; padding-bottom:var(--scratch-h,45vh);}
   .exam-bar{top:60px;}
 }
 
@@ -1925,13 +1937,49 @@ async function geminiRequest(body, model){
 // Pede à IA uma resposta só em JSON (usado por resumos/flashcards/quiz automáticos) e faz o parse.
 // extraParts: anexos (PDF, imagem, vídeo do YouTube…) que a IA deve ler antes de responder.
 async function askZenJSON(promptText, extraParts, opts){
-  const text = promptText + '\n\nResponda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois.';
+  const text = promptText + '\n\nResponda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois. Dentro das strings, escreva cada barra invertida dobrada (LaTeX: "\\\\frac", "\\\\cdot") e cada quebra de linha como \\n.';
   const raw = await askZen([{role:'user', parts:[...(extraParts||[]), {text}]}], Object.assign({json:true}, opts));
-  const start = raw.search(/[\[{]/), end = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'));
-  try{
-    if(start<0 || end<start) throw new Error('sem JSON');
-    return JSON.parse(raw.slice(start, end+1));
-  }catch(e){ if(opts && opts.cache) aiCacheDropText(raw); const err = new Error('JSON inválido da IA: '+raw.slice(0,200)); err.code='JSON'; throw err; }
+  try{ return parseLooseJSON(raw); }
+  catch(e){ console.warn('JSON da IA:', raw); if(opts && opts.cache) aiCacheDropText(raw); const err = new Error('JSON inválido da IA: '+raw.slice(0,200)); err.code='JSON'; throw err; }
+}
+// A IA às vezes manda JSON "quase certo": LaTeX com \ sem escapar, quebras de linha cruas, vírgula sobrando no fim…
+function parseLooseJSON(raw){
+  const s = String(raw||'').replace(/^\s*```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  const start = s.search(/[\[{]/), end = Math.max(s.lastIndexOf('}'), s.lastIndexOf(']'));
+  if(start<0 || end<start) throw new Error('sem JSON');
+  const body = s.slice(start, end+1);
+  let data;
+  try{ data = JSON.parse(body); }catch(e){ data = JSON.parse(repairJSON(body)); }
+  return fixLatexControls(data);
+}
+function repairJSON(s){
+  let out = '', inStr = false;
+  for(let i=0;i<s.length;i++){
+    const ch = s[i];
+    if(!inStr){
+      if(ch==='"') inStr = true;
+      else if(ch===','){ const rest = s.slice(i+1).match(/^\s*([}\]])/); if(rest) continue; }   // vírgula antes de } ou ]
+      out += ch; continue;
+    }
+    if(ch==='\\'){
+      const nx = s[i+1];
+      if(nx && '"\\/bfnrt'.includes(nx)){ out += ch + nx; i++; continue; }
+      if(nx==='u' && /^[0-9a-fA-F]{4}$/.test(s.substr(i+2, 4))){ out += s.substr(i, 6); i += 5; continue; }
+      out += '\\\\'; continue;                                   // \cdot, \sqrt, \Delta… viram \\cdot
+    }
+    if(ch==='"'){ inStr = false; out += ch; continue; }
+    const c = ch.charCodeAt(0);
+    if(c < 0x20){ out += ch==='\n' ? '\\n' : ch==='\r' ? '' : ch==='\t' ? '\\t' : ''; continue; }
+    out += ch;
+  }
+  return out;
+}
+// "\frac" e "\beta" sem escapar viram caracteres de controle no JSON (\f, \b): devolve a barra pro LaTeX
+function fixLatexControls(v){
+  if(typeof v==='string') return v.replace(/\f/g, '\\f').replace(/\x08/g, '\\b').replace(/\t(?=(?:imes|heta|ext|an|au|riangle|frac)\b)/g, '\\t');
+  if(Array.isArray(v)) return v.map(fixLatexControls);
+  if(v && typeof v==='object'){ Object.keys(v).forEach(k=> v[k] = fixLatexControls(v[k])); return v; }
+  return v;
 }
 function zenErrorMessage(err){
   if(!err) return 'O Zen não conseguiu responder agora.';
@@ -3856,9 +3904,10 @@ function openScratch(key, label){
       <span class="sp-tools">
         <button type="button" data-st="pen" title="Lápis">✏️</button><button type="button" data-st="eraser" title="Borracha">🧽</button>
         ${['#1C2B26','#2F5F8A','#C1564A'].map(c=>`<button type="button" class="sp-color" data-sc="${c}" style="background:${c}"></button>`).join('')}
-        <button type="button" id="sp-clear" title="Apagar tudo">🗑️</button><button type="button" id="sp-close" title="Fechar">✕</button>
+        <button type="button" id="sp-clear" title="Apagar tudo">🗑️</button><button type="button" id="sp-dock" title="Lado a lado com a questão">◧</button><button type="button" id="sp-max" title="Aumentar">⤢</button><button type="button" id="sp-close" title="Fechar">✕</button>
       </span></div>
-      <div class="sp-body"><canvas id="sp-canvas"></canvas></div>`;
+      <div class="sp-body"><canvas id="sp-canvas"></canvas></div>
+      <span class="sp-resize" title="Arraste pra mudar o tamanho"></span>`;
     document.body.appendChild(el);
     el.querySelectorAll('[data-st]').forEach(b=> b.addEventListener('click', ()=>{ scratchTool = b.dataset.st; updateScratchTools(); }));
     el.querySelectorAll('[data-sc]').forEach(b=> b.addEventListener('click', ()=>{ scratchColor = b.dataset.sc; scratchTool = 'pen'; updateScratchTools(); }));
@@ -3870,13 +3919,15 @@ function openScratch(key, label){
     scratchCanvas.addEventListener('pointerup', onScratchUp);
     scratchCanvas.addEventListener('pointercancel', onScratchUp);
     new ResizeObserver(()=> sizeScratch()).observe(el.querySelector('.sp-body'));
+    initScratchWindow(el);
   }
   el.hidden = false;
+  applyScratchGeom();
   document.getElementById('sp-title').textContent = `✏️ ${label}`;
   s.scratch[scratchKey] = s.scratch[scratchKey] || [];
   updateScratchTools(); sizeScratch();
 }
-function closeScratch(){ const el = document.getElementById('scratch-panel'); if(el) el.hidden = true; scratchKey = null; }
+function closeScratch(){ const el = document.getElementById('scratch-panel'); if(el) el.hidden = true; scratchKey = null; document.body.classList.remove('scratch-docked'); }
 function updateScratchTools(){
   document.querySelectorAll('#scratch-panel [data-st]').forEach(b=> b.classList.toggle('active', b.dataset.st===scratchTool));
   document.querySelectorAll('#scratch-panel [data-sc]').forEach(b=> b.classList.toggle('active', scratchTool==='pen' && b.dataset.sc===scratchColor));
@@ -8996,7 +9047,26 @@ const TOOL_GROUPS = [
   {title:'🎯 Praticar e memorizar', ids:['redacao','provaestilo','erros','cloze','timeline','formulas']},
   {title:'🗓️ Planejar', ids:['plano','diagnostico']}
 ];
-function qVisualHTML(q){ return q && q.visual ? `<div class="q-visual md-content">${renderMarkdown(q.visual)}</div>` : ''; }
+function qVisualHTML(q){ return q && q.visual ? `<div class="q-visual md-content">${renderMarkdown(fixVisualMarkdown(q.visual))}</div>` : ''; }
+// A IA às vezes esquece de fechar o bloco ``` ou manda o <svg> solto: arruma pra virar figura de verdade
+function fixVisualMarkdown(v){
+  v = String(v||'').trim();
+  if(!v.includes('\n') && v.includes('\\n')) v = v.replace(/\\n/g, '\n');      // quebras de linha que vieram como texto
+  v = v.replace(/^```[ \t]+(\w+)/gm, '```$1');
+  if(!v.startsWith('```') && /^<(svg|div|canvas|table|style|html|!doctype)/i.test(v)) v = '```html\n' + v + '\n```';
+  if(((v.match(/^```/gm)||[]).length) % 2 === 1) v += '\n```';
+  return v;
+}
+// Figura/código que foi parar dentro do enunciado vai pro campo "visual"
+function normalizeQuestionVisual(q){
+  let changed = false;
+  const qt = String(q.question||'');
+  const m = qt.match(/```\w*[\s\S]*?(?:```|$)/) || qt.match(/<svg[\s\S]*?(?:<\/svg>|$)/i);
+  if(m){ q.visual = ((q.visual||'') + '\n' + m[0]).trim(); q.question = (qt.slice(0, m.index) + qt.slice(m.index + m[0].length)).trim() || qt.slice(0, 80); changed = true; }
+  if(q.visual){ const v = fixVisualMarkdown(q.visual); if(v!==q.visual){ q.visual = v; changed = true; } }
+  return changed;
+}
+(function fixSavedQuestionVisuals(){ let n = 0; state.questions.forEach(q=>{ if(normalizeQuestionVisual(q)) n++; }); if(n) persist('questions'); })();
 function cardFaceHTML(text, card){ return card && card.fmt==='md' ? `<div class="md-content">${renderMarkdown(text)}</div>` : `<p>${escapeHTML(text)}</p>`; }
 function countToolUse(){ state.stats.toolUses = (state.stats.toolUses||0)+1; persist('stats'); }
 function optionsHTML(opts, picked, correct, locked){
@@ -9275,7 +9345,7 @@ ${visual ? `Pelo menos metade das questões deve depender de um VISUAL no campo 
 Formato: {"estilo":"uma frase sobre o estilo da prova","materia":"...","questions":[{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"...","visual":""}]}
 ${text ? `\nProva/questões de referência:\n${text.slice(0,20000)}` : ''}`, parts);
     const raw = Array.isArray(r.questions) ? r.questions : [];
-    const clean = sanitizeQuestions(raw).map(q=>{ const src = raw.find(x=> x && String(x.question||'').trim()===q.question) || {}; return Object.assign(q, {visual:String(src.visual||'').trim()}); });
+    const clean = sanitizeQuestions(raw).map(q=>{ const src = raw.find(x=> x && String(x.question||'').trim()===q.question) || {}; const nq = Object.assign(q, {visual:String(src.visual||'').trim()}); normalizeQuestionVisual(nq); return nq; });
     if(!clean.length) throw Object.assign(new Error('vazio'), {code:'JSON'});
     provaGen = {estilo:String(r.estilo||''), subject:ensureSubject(subject || String(r.materia||'') || 'Geral'), qs:clean, saved:null};
     countToolUse(); registerActivityToday();
@@ -10007,6 +10077,76 @@ document.addEventListener('click', e=>{
     const panel = document.getElementById('qb-live-panel'); if(panel) panel.classList.remove('open');
   }
 });
+
+/* ============================================================
+   RASCUNHO DO SIMULADO COMO JANELA (arrastar, mudar o tamanho, lado a lado, tela cheia)
+   ============================================================ */
+// mode: 'float' (janelinha solta), 'dock' (lado a lado com a questão) ou 'max' (quase a tela toda)
+function scratchGeom(){ return state.settings.scratchGeom = Object.assign({mode:'float'}, state.settings.scratchGeom); }
+function scratchNarrow(){ return window.matchMedia && matchMedia('(max-width:900px)').matches; }
+function applyScratchGeom(){
+  const el = document.getElementById('scratch-panel'); if(!el) return;
+  const g = scratchGeom();
+  el.classList.toggle('docked', g.mode==='dock');
+  el.classList.toggle('maxed', g.mode==='max');
+  document.body.classList.toggle('scratch-docked', g.mode==='dock' && !el.hidden);
+  ['left','top','width','height','right','bottom'].forEach(k=> el.style[k] = '');
+  const root = document.documentElement;
+  if(g.mode==='dock'){
+    if(scratchNarrow()) root.style.setProperty('--scratch-h', clamp(g.dockH || Math.round(innerHeight*0.45), 180, innerHeight-200)+'px');
+    else {   // a questão sempre fica com pelo menos ~340px do lado
+      const room = innerWidth - (document.querySelector('.main')||document.body).getBoundingClientRect().left;
+      root.style.setProperty('--scratch-w', clamp(g.dockW || Math.round(room*0.45), 260, Math.max(260, room-340))+'px');
+    }
+  } else if(g.mode==='float' && g.w){
+    const w = clamp(g.w, 240, innerWidth-16), h = clamp(g.h, 180, innerHeight-16);
+    Object.assign(el.style, {width:w+'px', height:h+'px', left:clamp(g.x, 0, innerWidth-w)+'px', top:clamp(g.y, 0, innerHeight-h)+'px', right:'auto', bottom:'auto'});
+  }
+  const dock = document.getElementById('sp-dock'), max = document.getElementById('sp-max');
+  if(dock){ dock.classList.toggle('active', g.mode==='dock'); dock.title = g.mode==='dock' ? 'Voltar a ser janelinha' : 'Lado a lado com a questão'; }
+  if(max){ max.textContent = g.mode==='max' ? '⤡' : '⤢'; max.title = g.mode==='max' ? 'Tamanho normal' : 'Aumentar (quase a tela toda)'; }
+}
+function setScratchMode(mode){ const g = scratchGeom(); g.mode = g.mode===mode ? 'float' : mode; persist('settings'); applyScratchGeom(); }
+// Arrastar pela barra de cima e mudar o tamanho pelo cantinho (funciona com mouse, dedo e caneta)
+function initScratchWindow(el){
+  const head = el.querySelector('.sp-head'), grip = el.querySelector('.sp-resize');
+  document.getElementById('sp-dock').addEventListener('click', ()=> setScratchMode('dock'));
+  document.getElementById('sp-max').addEventListener('click', ()=> setScratchMode('max'));
+  head.addEventListener('dblclick', e=>{ if(!e.target.closest('button')) setScratchMode('max'); });
+  const toFloatFromRect = ()=>{ const r = el.getBoundingClientRect(), g = scratchGeom(); Object.assign(g, {mode:'float', x:r.left, y:r.top, w:r.width, h:r.height}); return g; };
+  let drag = null;
+  head.addEventListener('pointerdown', e=>{
+    if(e.target.closest('button') || e.button>0) return;
+    const g = scratchGeom();
+    if(g.mode==='dock') return;                       // lado a lado fica preso no canto
+    const r = el.getBoundingClientRect();
+    if(g.mode==='max'){ Object.assign(g, {mode:'float', w:Math.min(r.width, 520), h:Math.min(r.height, 520)}); g.x = e.clientX - g.w/2; g.y = e.clientY - 18; applyScratchGeom(); }
+    else toFloatFromRect();
+    const now = el.getBoundingClientRect();
+    drag = {kind:'move', dx:e.clientX-now.left, dy:e.clientY-now.top};
+    try{ head.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault();
+  });
+  grip.addEventListener('pointerdown', e=>{
+    const g = scratchGeom();
+    if(g.mode==='max') toFloatFromRect();
+    drag = {kind: g.mode==='dock' ? (scratchNarrow() ? 'dockH' : 'dockW') : 'size'};
+    try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+    e.preventDefault(); e.stopPropagation();
+  });
+  const move = e=>{
+    if(!drag) return;
+    const g = scratchGeom();
+    if(drag.kind==='move'){ g.x = e.clientX - drag.dx; g.y = e.clientY - drag.dy; }
+    else if(drag.kind==='size'){ const r = el.getBoundingClientRect(); g.w = Math.max(240, e.clientX - r.left); g.h = Math.max(180, e.clientY - r.top); g.x = r.left; g.y = r.top; }
+    else if(drag.kind==='dockW') g.dockW = innerWidth - e.clientX;
+    else if(drag.kind==='dockH') g.dockH = el.getBoundingClientRect().bottom - e.clientY;
+    applyScratchGeom();
+  };
+  const up = ()=>{ if(drag){ drag = null; persist('settings'); } };
+  [head, grip].forEach(t=>{ t.addEventListener('pointermove', move); t.addEventListener('pointerup', up); t.addEventListener('pointercancel', up); });
+  window.addEventListener('resize', debounce(()=>{ if(!el.hidden) applyScratchGeom(); }, 150));
+}
 
 /* ============================================================
    MODO FOCO (POMODORO)
