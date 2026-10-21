@@ -9595,7 +9595,10 @@ Object.assign(TOOL_RENDERERS, {aula:renderToolAula, posaula:renderToolPosaula, l
    ============================================================ */
 function gradesState(){
   const g = state.grades;
-  g.config = Object.assign({media:6, periodos:4, nome:'Bimestre'}, g.config);
+  // completa os padrões no MESMO objeto (trocar por uma cópia fazia a mudança de bimestre/trimestre se perder)
+  g.config = g.config && typeof g.config==='object' ? g.config : {};
+  const defaults = {media:6, periodos:4, nome:'Bimestre'};
+  Object.keys(defaults).forEach(k=>{ if(g.config[k]==null) g.config[k] = defaults[k]; });
   g.entries = Array.isArray(g.entries) ? g.entries : [];
   return g;
 }
