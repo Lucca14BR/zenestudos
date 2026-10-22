@@ -5682,7 +5682,7 @@ function openHwViewer(urls, start = 0, opts = {}){
   if(!urls.length) return;
   const many = urls.length > 1, back = document.activeElement;
   const o = document.createElement('div');
-  o.className = 'fixed inset-0 z-[60] bg-[#0D120C] text-white flex flex-col select-none';
+  o.className = 'fixed inset-0 z-[60] bg-[#0D120C]/95 text-white flex flex-col select-none';
   o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'Imagem ampliada');
   const sym = d => `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="${d}"/></svg>`;
   const arrow = (dir, d, label, side) => `<button type="button" data-v="${dir}" class="hw-ib absolute ${side} top-1/2 -translate-y-1/2 !bg-black/45 hover:!bg-black/65" aria-label="${label}">${sym(d)}</button>`;
@@ -6941,3 +6941,128 @@ function chatBubble(m, idx){
     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
       ${idx >= 0 ? ['nota:Salvar em Anotações', 'resumo:Virar resumo', 'cards:Virar flashcards', 'copy:Copiar'].map(x => { const [a, l] = x.split(':'); return `<button type="button" data-msg-act="${a}" data-msg="${idx}" class="font-semibold text-[#3F6B35] hover:underline">${l}</button>`; }).join('') : ''}
       ${m.time ? `<span class="ml-auto text-[11px] text-[#5E7552] tabular-nums">${m.time}</span>` : ''}
+    </div></div></div>`;
+}
+function renderChat(){
+  const log = document.getElementById('chat-log');
+  let html = chatBubble({role:'model', text:CHAT_HELLO}, -1) + CHAT.map((m, i) => chatBubble(m, i)).join('');
+  if(chatBusy) html += `<div class="flex items-center gap-3">${ZEN_AVATAR}<div class="rounded-2xl bg-[#E6EFDC] border border-[#CFE0BF] px-4 py-3 flex gap-1.5" role="status" aria-label="Zen está escrevendo"><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span></div></div>`;
+  if(chatErr) html += `<div class="flex items-start gap-3">${ZEN_AVATAR}<div class="max-w-[88%] rounded-2xl rounded-tl-md bg-sand border border-[#E6D9B8] px-4 py-3">
+      <p class="text-[15px]">${esc(zenErrorText(chatErr))}</p>
+      <div class="mt-2.5 flex flex-wrap gap-2">
+        ${['semchave', 'chave', 'modelo'].includes(chatErr.code) ? `<button type="button" data-open-settings class="${btnPrimary} !py-2 !text-[14px]">Abrir Configurações</button>` : ''}
+        <button type="button" data-chat-retry class="${btnSoft} !py-2 !text-[14px]">Tentar de novo</button>
+      </div></div></div>`;
+  log.innerHTML = html;
+  renderMath(log);
+  log.scrollTop = log.scrollHeight;
+  document.getElementById('chat-suggest').innerHTML = CHAT.length ? '' : CHAT_SUGGEST.map(s => `<button type="button" data-suggest class="shrink-0 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13.5px] text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${esc(s)}</button>`).join('');
+  document.getElementById('chat-send').disabled = chatBusy;
+}
+let chatPending = null;     // fotos em tamanho bom da última mensagem (as antigas vão em miniatura)
+async function sendChat(text, imgs){
+  if(chatBusy) return;
+  if(text){
+    const m = {role:'user', text, time:nowTime()};
+    if(imgs && imgs.length) m.imgs = imgs.map(i => i.thumb);
+    chatPending = imgs && imgs.length ? imgs : null;
+    CHAT.push(m); saveChat(); STATS.chatMessages++; addXP(XP.chat, 'chat');
+  }
+  if(!CHAT.length || CHAT[CHAT.length - 1].role !== 'user') return;
+  chatErr = null; chatBusy = true; renderChat();
+  try{
+    const recent = CHAT.slice(-24);
+    const contents = recent.map((m, k) => {
+      const imgs = k === recent.length - 1 && chatPending ? chatPending : (m.imgs || []).filter(u => /^data:image\//.test(u)).map(u => ({mime:'image/jpeg', data:u.split(',')[1]}));
+      return {role:m.role, parts:[...imgParts(imgs), {text:m.text + (imgs.length && m.role === 'user' ? imgHint(imgs) : '')}]};
+    });
+    while(contents.length && contents[0].role !== 'user') contents.shift();   // a conversa precisa começar pelo aluno
+    const r = await askGemini({contents, system:zenSystemPrompt()});
+    CHAT.push({role:'model', text:r.text, time:nowTime(), model:r.model}); chatPending = null; saveChat();
+    if(r.model !== SETTINGS.main) toast(`O modelo principal não respondeu, então o Zen usou a reserva (${modelName(r.model)}).`);
+  }catch(err){ chatErr = err; }
+  chatBusy = false; renderChat();
+}
+const chatInput = document.getElementById('chat-input');
+const fitChatInput = () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(160, chatInput.scrollHeight) + 'px'; };
+chatInput.addEventListener('input', fitChatInput);
+chatInput.addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('chat-form').requestSubmit(); } });
+// fotos para o Zen: botão da câmera, colar (Ctrl+V) ou arrastar para a conversa
+let chatImgs = [];
+function paintChatAtt(){
+  const el = document.getElementById('chat-att-list');
+  el.classList.toggle('hidden', !chatImgs.length);
+  el.innerHTML = chatImgs.map((im, k) => `<span class="relative"><img src="${im.thumb}" alt="Foto ${k + 1}" class="w-16 h-16 rounded-xl object-cover border border-line">
+    <button type="button" data-chat-att-del="${k}" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white grid place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a foto ${k + 1}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>`).join('');
+}
+async function addChatImages(files){
+  for(const f of imagesFrom(files)){
+    if(chatImgs.length >= ATTACH_MAX){ toast(`No máximo ${ATTACH_MAX} fotos por mensagem.`); break; }
+    try{ chatImgs.push(await readImage(f)); }catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+  }
+  paintChatAtt(); chatInput.focus();
+}
+document.getElementById('chat-att').addEventListener('click', async () => addChatImages(await pickImageFiles()));
+document.getElementById('chat-att-list').addEventListener('click', e => { const d = e.target.closest('[data-chat-att-del]'); if(d){ chatImgs.splice(+d.dataset.chatAttDel, 1); paintChatAtt(); } });
+chatInput.addEventListener('paste', e => { const fs = imagesFrom(e.clipboardData && e.clipboardData.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
+const chatScreen = document.querySelector('[data-screen="chat"]');
+chatScreen.addEventListener('dragover', e => { if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+chatScreen.addEventListener('drop', e => { const fs = imagesFrom(e.dataTransfer.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
+document.getElementById('chat-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = chatInput.value.trim();
+  if((!text && !chatImgs.length) || chatBusy) return;
+  const imgs = chatImgs; chatImgs = []; paintChatAtt();
+  chatInput.value = ''; fitChatInput();
+  sendChat(text || (imgs.length > 1 ? 'Me ajuda com estas fotos?' : 'Me ajuda com esta foto?'), imgs);
+});
+document.getElementById('chat-log').addEventListener('click', async e => {
+  if(e.target.closest('[data-chat-retry]')) return sendChat();
+  const b = e.target.closest('[data-msg-act]'); if(!b) return;
+  const i = +b.dataset.msg, m = CHAT[i], prev = CHAT[i - 1];
+  const heading = (m.text.match(/^#{1,4}\s+(.+)$/m) || [])[1];
+  const title = (heading || (prev && prev.role === 'user' ? prev.text : 'Do chat com o Zen')).replace(/[*_#`$]/g, '').slice(0, 80);
+  if(b.dataset.msgAct === 'nota'){ const n = createNoteFromMarkdown(title, m.text, '🦫', 'geral'); toast(`Anotação "${n.title}" criada.`); }
+  if(b.dataset.msgAct === 'resumo') openSummaryEditor(SUBJECTS[0].k, null, {t:title, content:m.text});
+  if(b.dataset.msgAct === 'copy') navigator.clipboard.writeText(m.text).then(() => toast('Copiado.'), () => toast('Não deu para copiar.'));
+  if(b.dataset.msgAct === 'cards'){
+    b.disabled = true; b.textContent = 'Criando...';
+    try{ const n = await generateCards(null, title, `Use como base esta explicação:\n${m.text}`, 6); toast(`${n} cartões criados em Flashcards.`); }
+    catch(err){ toast(zenErrorText(err)); }
+    b.disabled = false; b.textContent = 'Virar flashcards';
+  }
+});
+document.getElementById('chat-suggest').addEventListener('click', e => { const b = e.target.closest('[data-suggest]'); if(b) sendChat(b.textContent); });
+document.getElementById('chat-new').addEventListener('click', () => {
+  if(chatBusy || !CHAT.length) return;
+  if(!confirm('Começar uma conversa nova? A conversa atual será apagada.')) return;
+  CHAT.length = 0; chatErr = null; saveChat(); renderChat(); chatInput.focus();
+});
+// se a última mensagem ficou sem resposta (erro, aba fechada), oferece responder agora
+if(CHAT.length && CHAT[CHAT.length - 1].role === 'user') chatErr = new ZenError('pendente');
+renderChat();
+paintKeyStatus();
+// o KaTeX carrega depois da página: quando chegar, desenha as fórmulas que já estão na tela
+// O KaTeX chega depois: redesenha o chat e a tela aberta para as fórmulas aparecerem
+window.addEventListener('load', () => {
+  renderMath(document.getElementById('chat-log'));
+  if(currentScreen !== 'chat' && SCREEN_REFRESH[currentScreen]) try{ SCREEN_REFRESH[currentScreen](); }catch(err){}
+});
+
+// ---------- Abertura do app ----------
+document.getElementById('mobile-avatar').textContent = PROFILE_AVATAR[ME.id];
+registerVisit(); refreshStreak(); settleLastWeek();
+try{ checkMissions(); checkAchievements(); }catch(err){}
+if(SCREEN_REFRESH[currentScreen]) SCREEN_REFRESH[currentScreen]();
+setTimeout(maybeAskProfile, 400);
+setInterval(() => { try{ checkMissions(); }catch(err){} }, 15000);
+
+// fechar a janela (modal): botão X, clique fora ou Esc
+document.getElementById('modal').addEventListener('click', e => {
+  if(document.getElementById('modal').dataset.lock) return;
+  if(e.target.closest('[data-close]') || e.target.id === 'modal' || e.target === document.getElementById('modal').firstElementChild) closeModal();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('modal').classList.contains('hidden') && !document.getElementById('modal').dataset.lock) closeModal(); });
+</script>
+</body>
+</html>
