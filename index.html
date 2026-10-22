@@ -5237,7 +5237,9 @@ const hwTray = [];   // {canvas, img}: o canvas guarda a imagem inteira, para da
 function hwImgFrom(canvas, k){
   k = k || {x:0, y:0, w:canvas.width, h:canvas.height};
   const url = hwCut(canvas, k, 1600, .88);
-  return {mime:'image/jpeg', data:url.split(',')[1], url, thumb:hwCut(canvas, k, 480, .72), small:hwCut(canvas, k, 360, .62)};
+  // "view" é uma versão maior (até 2400 px) só para ver com zoom; o Zen recebe a de 1600 px, que já basta para ler
+  const view = Math.max(k.w, k.h) > 1650 ? hwCut(canvas, k, 2400, .92) : url;
+  return {mime:'image/jpeg', data:url.split(',')[1], url, view, thumb:hwCut(canvas, k, 480, .72), small:hwCut(canvas, k, 360, .62)};
 }
 async function hwAddFiles(files){
   const list = imagesFrom(files); if(!list.length) return;
@@ -5317,7 +5319,7 @@ function openHwStart(){
     if(e.target.closest('[data-hw-paste]')) return hwPasteButton();
     const rm = e.target.closest('[data-hw-rm]'); if(rm){ hwTray.splice(+rm.dataset.hwRm, 1); return paintHwTray(); }
     const vw = e.target.closest('[data-hw-view]');
-    if(vw) return openHwViewer(hwTray.map(t => t.img.url), +vw.dataset.hwView, {onCrop:i => openHwCamera(null, {edit:i})});
+    if(vw) return openHwViewer(hwTray.map(t => t.img.view || t.img.url), +vw.dataset.hwView, {onCrop:i => openHwCamera(null, {edit:i})});
     if(e.target.closest('[data-hw-go]')){
       const imgs = hwTray.splice(0).map(t => t.img); closeModal();
       return openHwSolution(hwNewEntry({imgs}));
@@ -5444,7 +5446,7 @@ async function hwStartCamera(){
   hwPaintHint();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return msg('Este navegador não abre a câmera dentro do app.', 'Dá para usar a câmera do aparelho ou escolher uma foto.');
   try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}});
+    const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1440}}});
     if(!hwCam || hwCam.step !== 'cam'){ stream.getTracks().forEach(t => t.stop()); return; }   // fechou antes de a câmera abrir
     hwCam.stream = stream; hwCam.track = stream.getVideoTracks()[0];
     const v = document.getElementById('hwc-video'); v.srcObject = stream;
@@ -5682,7 +5684,7 @@ function openHwViewer(urls, start = 0, opts = {}){
   if(!urls.length) return;
   const many = urls.length > 1, back = document.activeElement;
   const o = document.createElement('div');
-  o.className = 'fixed inset-0 z-[60] bg-[#0D120C]/95 text-white flex flex-col select-none';
+  o.className = 'fixed inset-0 z-[60] bg-[#0D120C] text-white flex flex-col select-none';
   o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'Imagem ampliada');
   const sym = d => `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="${d}"/></svg>`;
   const arrow = (dir, d, label, side) => `<button type="button" data-v="${dir}" class="hw-ib absolute ${side} top-1/2 -translate-y-1/2 !bg-black/45 hover:!bg-black/65" aria-label="${label}">${sym(d)}</button>`;
@@ -5695,7 +5697,7 @@ function openHwViewer(urls, start = 0, opts = {}){
       <button type="button" data-v="close" class="hw-ib ml-1" aria-label="Fechar">${HW_X}</button>
     </div>
     <div data-v="stage" class="relative flex-1 min-h-0 overflow-hidden touch-none cursor-grab">
-      <img data-v="img" alt="" draggable="false" class="absolute left-0 top-0 max-w-none origin-top-left bg-white">
+      <img data-v="img" alt="" draggable="false" class="absolute left-0 top-0 max-w-none bg-white">
       ${many ? arrow('prev', 'm15 6-6 6 6 6', 'Imagem anterior', 'left-3') + arrow('next', 'm9 6 6 6-6 6', 'Próxima imagem', 'right-3') : ''}
     </div>
     <p class="text-center text-[12.5px] text-white/55 px-4 pt-2 pb-[max(10px,env(safe-area-inset-bottom))]">Dois toques ou pinça para dar zoom. Arraste para mover.</p>`;
@@ -5709,7 +5711,9 @@ function openHwViewer(urls, start = 0, opts = {}){
   };
   const apply = () => {
     clamp();
-    img.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
+    // o tamanho vai na largura/altura (e não num scale do CSS): assim o navegador redimensiona com o filtro bom e as letras ficam nítidas
+    img.style.width = v.w * v.s + 'px'; img.style.height = v.h * v.s + 'px';
+    img.style.transform = `translate(${v.x}px, ${v.y}px)`;
     $('reset').textContent = `${Math.round(v.s / v.fit * 100)}%`;
     stage.classList.toggle('cursor-grab', v.s > v.fit * 1.01);
   };
@@ -5722,7 +5726,7 @@ function openHwViewer(urls, start = 0, opts = {}){
   const show = i => {
     v.i = (i + urls.length) % urls.length;
     $('count').textContent = many ? `Imagem ${v.i + 1} de ${urls.length}` : 'Imagem da questão';
-    img.onload = () => { v.w = img.naturalWidth; v.h = img.naturalHeight; img.style.width = v.w + 'px'; img.style.height = v.h + 'px'; fitNow(); };
+    img.onload = () => { v.w = img.naturalWidth; v.h = img.naturalHeight; fitNow(); };
     img.src = urls[v.i];
   };
   const close = () => {
@@ -6048,7 +6052,7 @@ function hwMarkdown(e, Q){
 async function hwSheetClick(ev){
   const e = hwCur; if(!e) return;
   const zb = ev.target.closest('[data-hws-zoom]');
-  if(zb) return openHwViewer(e.imgs.length ? e.imgs.map(i => i.url) : e.thumbOnly ? [e.thumbOnly] : [], +zb.dataset.hwsZoom);
+  if(zb) return openHwViewer(e.imgs.length ? e.imgs.map(i => i.view || i.url) : e.thumbOnly ? [e.thumbOnly] : [], +zb.dataset.hwsZoom);
   const qb = ev.target.closest('[data-hws-q]');
   if(qb){ e.sel = +qb.dataset.hwsQ; e.askMode = null; e.anim = 'all'; renderHwSheet(); return; }
   if(ev.target.matches('[data-hws-tentar]')){
