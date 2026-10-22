@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zen Estudos (teste)</title>
+<!-- para instalar como app (só funciona aberto por um site https://, com estes arquivos na mesma pasta) -->
+<link rel="manifest" href="zen-estudos.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#354C32">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zen Estudos">
 <!-- Arquivo de TESTE isolado: não usa nem altera nada do index.html -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -165,6 +173,7 @@
   .hw-flash { animation:hwFlash .4s ease-out forwards; }
   @keyframes hwFlash { from { opacity:.9; } to { opacity:0; } }
   .hw-blur { filter:blur(9px); user-select:none; pointer-events:none; }
+  .hw-drag { border-color:#4A7A42 !important; background:#EAF2E2 !important; }
   @media (prefers-reduced-motion: reduce) { .hw-scan::after, .hw-step, .hw-flash { animation:none; } .hw-frame { transition:none; } }
   /* reação do duelo: o emoji sobe e some em cima do avatar */
   .du-bubble { position:absolute; top:-18px; left:22px; font-size:26px; opacity:0; pointer-events:none; }
@@ -1506,6 +1515,35 @@ const btnPrimary = 'inline-flex items-center justify-center gap-2 rounded-xl bg-
 const btnSoft = 'inline-flex items-center justify-center gap-2 rounded-xl bg-paper border border-line font-semibold text-[15px] px-4 py-2.5 hover:bg-sand disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400';
 const spinner = '<svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
 
+// ---------- Instalar como app ----------
+// O Chrome avisa quando dá para instalar (beforeinstallprompt); no iPhone é pelo menu Compartilhar do Safari.
+let installEvt = null;
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; paintInstall(); });
+addEventListener('appinstalled', () => { installEvt = null; paintInstall(); toast('Pronto! O Zen Estudos foi instalado. 🦫'); });
+// guarda o app para abrir sem internet (só em site https; o arquivo sw-teste.js fica na mesma pasta)
+if(/^https?:$/.test(location.protocol) && 'serviceWorker' in navigator)
+  addEventListener('load', () => navigator.serviceWorker.register('sw-teste.js', {scope:location.pathname}).catch(() => {}));
+function installInfo(){
+  if(isInstalled()) return {msg:'Você já está usando o Zen Estudos instalado. ✓'};
+  if(!/^https?:$/.test(location.protocol)) return {msg:'Aberto como arquivo, o navegador só deixa criar atalho. Para instalar de verdade, abra o app pelo endereço do site (https://), com os arquivos de instalação na mesma pasta.'};
+  if(isIOS()) return {msg:'No iPhone, abra no Safari, toque em Compartilhar (o quadrado com a seta) e depois em "Adicionar à Tela de Início".'};
+  if(installEvt) return {msg:'Vira um app de verdade: abre em tela cheia, com ícone próprio, e funciona sem internet (menos o Zen e o ao vivo).', btn:true};
+  return {msg:'No Chrome do celular, toque no menu ⋮ e em "Instalar app". Se só aparecer "Adicionar à tela inicial", recarregue a página uma vez e tente de novo.'};
+}
+function paintInstall(){
+  const m = document.getElementById('set-install-msg'), b = document.getElementById('set-install'); if(!m || !b) return;
+  const i = installInfo(); m.textContent = i.msg; b.classList.toggle('hidden', !i.btn);
+}
+async function runInstall(){
+  if(!installEvt) return paintInstall();
+  installEvt.prompt();
+  const r = await installEvt.userChoice.catch(() => null);
+  if(r && r.outcome === 'accepted') installEvt = null;
+  paintInstall();
+}
+
 // ---------- Configurações ----------
 function openSettings(){
   const opt = sel => GEMINI_MODELS.map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${m.nome} (${m.nota})</option>`).join('');
@@ -1541,6 +1579,11 @@ function openSettings(){
         <label class="text-[13.5px] font-semibold text-ink-2">Principal<select id="set-main" class="${fieldCls} mt-1 font-normal">${opt(SETTINGS.main)}</select></label>
         <label class="text-[13.5px] font-semibold text-ink-2">Reserva<select id="set-backup" class="${fieldCls} mt-1 font-normal">${opt(SETTINGS.backup)}</select></label>
       </div>
+    </section>
+    <section class="mt-5 pt-5 border-t border-line">
+      <h3 class="font-bold text-[16px]">Instalar o app</h3>
+      <p id="set-install-msg" class="mt-1 text-[14px] text-ink-2"></p>
+      <button id="set-install" type="button" class="${btnPrimary} mt-3 hidden">Instalar o Zen Estudos</button>
     </section>
     <section class="mt-5 pt-5 border-t border-line">
       <h3 class="font-bold text-[16px]">Comemorações</h3>
@@ -1585,6 +1628,7 @@ function openSettings(){
   document.getElementById('set-main').addEventListener('change', e => { SETTINGS.main = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-backup').addEventListener('change', e => { SETTINGS.backup = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-live-test').addEventListener('click', openServerTest);
+  paintInstall(); document.getElementById('set-install').addEventListener('click', runInstall);
   document.getElementById('set-sons').addEventListener('change', e => { SETTINGS.sons = e.target.checked; saveSettings(); if(SETTINGS.sons) partySound(false); });
   document.getElementById('set-party').addEventListener('click', () => { closeModal(); celebrateAchievement({id:'demo', icon:'🎉', title:'Assim fica!', desc:'É desse jeito que o Zen comemora cada conquista nova.'}); });
   document.getElementById('set-wipe').addEventListener('click', () => {
@@ -5182,46 +5226,138 @@ function hwItemHTML(h){
   return `<div class="flex items-center gap-2">
     <button type="button" data-hw-item="${h.id}" class="flex-1 min-w-0 flex items-center gap-3 rounded-xl bg-cream hover:bg-sand border border-line p-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
       ${h.thumb ? `<img src="${h.thumb}" alt="" class="w-12 h-12 rounded-lg object-cover bg-white shrink-0">` : `<span class="w-12 h-12 rounded-lg grid place-items-center shrink-0 text-white" style="background:${s.cor}">${hwGlyph(h.k, 'w-6 h-6')}</span>`}
-      <span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug line-clamp-2">${esc(title)}</span><span class="block text-[12.5px] text-muted">${s.nome} · ${ago(h.at)}</span></span>
+      <span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug line-clamp-2">${esc(title)}</span><span class="block text-[12.5px] text-muted">${s.nome} · ${ago(h.at)}${h.n > 1 ? ` · ${h.n} imagens` : ''}</span></span>
     </button>
     <button type="button" data-hw-del="${h.id}" class="w-9 h-9 shrink-0 rounded-lg grid place-items-center text-muted hover:bg-sand hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Apagar este dever">${HW_X}</button>
   </div>`;
 }
+// imagens juntadas na janela do Dever de casa antes de mandar (escolhidas, coladas, arrastadas ou recortadas)
+const HW_MAX = 6;
+const hwTray = [];   // {canvas, img}: o canvas guarda a imagem inteira, para dar para recortar de novo
+function hwImgFrom(canvas, k){
+  k = k || {x:0, y:0, w:canvas.width, h:canvas.height};
+  const url = hwCut(canvas, k, 1600, .88);
+  return {mime:'image/jpeg', data:url.split(',')[1], url, thumb:hwCut(canvas, k, 480, .72), small:hwCut(canvas, k, 360, .62)};
+}
+async function hwAddFiles(files){
+  const list = imagesFrom(files); if(!list.length) return;
+  for(const f of list){
+    if(hwTray.length >= HW_MAX){ toast(`No máximo ${HW_MAX} imagens por dever.`); break; }
+    try{ const c = await hwLoadCanvas(f); hwTray.push({canvas:c, img:hwImgFrom(c)}); }
+    catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+  }
+  paintHwTray();
+}
+// "Colar imagem": no celular não dá para colar sem um campo de texto, então o botão lê a área de transferência
+async function hwPasteButton(){
+  if(!navigator.clipboard || !navigator.clipboard.read) return toast('Este navegador não deixa colar por botão. Use Ctrl+V (no computador) ou escolha a imagem.');
+  try{
+    const items = await navigator.clipboard.read(), files = [];
+    for(const it of items){ const t = it.types.find(x => x.startsWith('image/')); if(t) files.push(new File([await it.getType(t)], 'colada.' + t.split('/')[1], {type:t})); }
+    if(!files.length) return toast('Não tem imagem copiada. Copie a imagem e tente de novo.');
+    hwAddFiles(files);
+  }catch(err){ toast('Não deu para ler a imagem copiada. Permita o acesso ou use Ctrl+V.'); }
+}
+function paintHwTray(){
+  const el = document.getElementById('hw-drop'); if(!el) return;
+  const n = hwTray.length, act = document.getElementById('hw-acts');
+  el.className = `rounded-2xl border-2 border-dashed transition-colors ${n ? 'border-line bg-cream p-3' : 'border-[#D9D1BE] bg-cream hover:bg-sand'}`;
+  el.innerHTML = n ? `<div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">${hwTray.map((t, i) => `<div class="relative aspect-square">
+        <button type="button" data-hw-crop="${i}" class="w-full h-full rounded-xl overflow-hidden border border-line bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Recortar" aria-label="Recortar a imagem ${i + 1}"><img src="${t.img.thumb}" alt="" class="w-full h-full object-contain p-1"></button>
+        <span class="absolute left-1.5 bottom-1.5 rounded-md bg-black/60 text-white text-[11.5px] font-bold px-1.5 pointer-events-none">${i + 1}</span>
+        <button type="button" data-hw-rm="${i}" class="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-ink text-white grid place-items-center shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a imagem ${i + 1}"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>`).join('')}
+      ${n < HW_MAX ? `<button type="button" data-hw-pick class="aspect-square rounded-xl border-2 border-dashed border-[#D9D1BE] grid place-items-center text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Adicionar mais imagens"><span class="text-center"><span class="block text-[26px] leading-none">+</span><span class="block text-[12.5px] font-semibold mt-1">Mais</span></span></button>` : ''}
+    </div>
+    <p class="mt-2.5 text-[13px] text-muted">Toque numa imagem para recortar. Dá para colar ou arrastar mais (até ${HW_MAX}).</p>`
+    : `<div class="flex flex-col items-center text-center px-4 py-6">
+      <button type="button" data-hw-pick class="flex flex-col items-center gap-1.5 rounded-xl px-3 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
+        <span class="w-12 h-12 rounded-full bg-honey text-ember grid place-items-center">${hwIco('gallery', 'w-6 h-6')}</span>
+        <span class="font-bold text-[16px] text-ink">Escolher imagens</span>
+      </button>
+      <p class="text-[13.5px] text-muted">ou arraste para cá, ou cole uma imagem copiada (Ctrl+V)</p>
+      <button type="button" data-hw-paste class="mt-2 rounded-full border border-line bg-paper px-3 py-1 text-[13px] font-semibold text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">Colar imagem</button>
+    </div>`;
+  // os botões de baixo mudam quando já tem imagem
+  act.innerHTML = n ? `<div class="grid sm:grid-cols-2 gap-2.5">
+        <label class="text-[13px] font-semibold text-ink-2">Matéria<select data-hw-k class="${fieldCls} mt-1 font-normal !py-2">${HW_SUBJ.map(s => `<option value="${s.k}" ${s.k === hwPref.k ? 'selected' : ''}>${s.k === 'auto' ? 'Geral (o Zen descobre)' : s.nome}</option>`).join('')}</select></label>
+        <label class="text-[13px] font-semibold text-ink-2">O que resolver<select data-hw-mode class="${fieldCls} mt-1 font-normal !py-2"><option value="um" ${hwPref.mode === 'um' ? 'selected' : ''}>A questão principal</option><option value="pagina" ${hwPref.mode === 'pagina' ? 'selected' : ''}>Todas as questões</option></select></label>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-2">
+        <button type="button" data-hw-go class="${btnPrimary}">${hwIco('check', 'w-[18px] h-[18px]')}Resolver ${n === 1 ? 'com o Zen' : `as ${n} imagens`}</button>
+        <button type="button" data-hw-open="cam" class="${btnSoft}">${CAMERA_ICO}Tirar foto</button>
+      </div>`
+    : `<div class="flex flex-wrap items-center gap-2">
+        <button type="button" data-hw-open="cam" class="${btnPrimary}">${CAMERA_ICO}Tirar foto</button>
+        <button type="button" data-hw-open="type" class="${btnSoft}">${hwIco('type', 'w-[18px] h-[18px]')}Digitar a questão</button>
+      </div>`;
+}
 function openHwStart(){
-  const opt = (act, ico, title, sub, main) => `<button type="button" data-hw-open="${act}" class="w-full flex items-center gap-4 rounded-2xl border px-4 py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${main ? 'bg-forest-700 border-forest-700 text-[#F3F1E6] hover:bg-forest-900' : 'bg-paper border-line hover:bg-sand'}">
-      <span class="w-11 h-11 rounded-full grid place-items-center shrink-0 ${main ? 'bg-[#F4BC4E] text-[#2B2412]' : 'bg-honey text-ember'}">${ico}</span>
-      <span class="min-w-0"><span class="block font-bold text-[16px]">${title}</span><span class="block text-[13.5px] ${main ? 'text-[#D5E2CC]' : 'text-muted'}">${sub}</span></span>
-    </button>`;
   const paint = () => {
     const el = document.getElementById('hws-recent'); if(!el) return;
-    el.innerHTML = HW.length ? `<h3 class="font-bold text-[15px]">Últimos deveres</h3><div class="mt-2 space-y-2 max-h-[36vh] overflow-y-auto pr-1">${HW.map(hwItemHTML).join('')}</div>` : '';
+    el.innerHTML = HW.length ? `<h3 class="font-bold text-[15px]">Últimos deveres</h3><div class="mt-2 space-y-2 max-h-[30vh] overflow-y-auto pr-1">${HW.map(hwItemHTML).join('')}</div>` : '';
   };
   openModal(`${modalHead('Dever de casa')}
     <p class="mt-1 text-[15px] text-ink-2">Mande a questão e o Zen mostra a resposta e o passo a passo, em qualquer matéria.</p>
-    <div class="mt-4 space-y-2.5">
-      ${opt('cam', CAMERA_ICO.replace('w-[18px] h-[18px]', 'w-[22px] h-[22px]'), 'Tirar foto', 'Abre a câmera, com lanterna e a escolha da matéria', true)}
-      ${opt('file', hwIco('gallery', 'w-[22px] h-[22px]'), 'Escolher do aparelho', 'Uma foto ou print que já está no aparelho')}
-      ${opt('type', hwIco('type', 'w-[22px] h-[22px]'), 'Digitar a questão', 'Escreva ou cole o enunciado')}
-    </div>
-    <div id="hws-recent" class="mt-5"></div>`);
-  paint();
-  document.getElementById('modal-box').onclick = async e => {
+    <div id="hw-drop" class="mt-4"></div>
+    <div id="hw-acts" class="mt-4"></div>
+    <div id="hws-recent" class="mt-5 pt-4 border-t border-line empty:hidden"></div>`);
+  paintHwTray(); paint();
+  const box = document.getElementById('modal-box');
+  box.onchange = e => {
+    if(e.target.matches('[data-hw-k]')){ hwPref.k = e.target.value; saveHwPref(); }
+    if(e.target.matches('[data-hw-mode]')){ hwPref.mode = e.target.value; saveHwPref(); }
+  };
+  box.onclick = async e => {
     const d = e.target.closest('[data-hw-del]');
     if(d){ const i = HW.findIndex(h => h.id === d.dataset.hwDel); if(i >= 0){ HW.splice(i, 1); saveHW(); paint(); } return; }
     const it = e.target.closest('[data-hw-item]');
     if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); closeModal(); if(h) openHwSolution(hwFromSaved(h)); return; }
+    if(e.target.closest('[data-hw-pick]')) return hwAddFiles(await pickImageFiles(true));
+    if(e.target.closest('[data-hw-paste]')) return hwPasteButton();
+    const rm = e.target.closest('[data-hw-rm]'); if(rm){ hwTray.splice(+rm.dataset.hwRm, 1); return paintHwTray(); }
+    const cr = e.target.closest('[data-hw-crop]'); if(cr) return openHwCamera(null, {edit:+cr.dataset.hwCrop});
+    if(e.target.closest('[data-hw-go]')){
+      const imgs = hwTray.splice(0).map(t => t.img); closeModal();
+      return openHwSolution(hwNewEntry({imgs}));
+    }
     const b = e.target.closest('[data-hw-open]'); if(!b) return;
-    const w = b.dataset.hwOpen;
-    if(w === 'file'){ const pick = pickImageFiles(false); closeModal(); const [f] = await pick; if(f) openHwCamera(f); return; }
+    const w = b.dataset.hwOpen, batch = hwTray.splice(0).map(t => t.img);
     closeModal();
-    if(w === 'cam') openHwCamera();
+    if(w === 'cam') openHwCamera(null, {batch});
     if(w === 'type') openHwTyped();
   };
 }
+const hwNewEntry = o => Object.assign({id:'hw' + Date.now().toString(36), at:Date.now(), k:hwPref.k, chosen:hwPref.k !== 'auto', mode:hwPref.mode, imgs:[], text:'', data:null, thread:[], sel:0}, o);
+// colar (Ctrl+V) ou arrastar imagens: com a janela do Dever de casa aberta, entram na lista; na tela Ferramentas, abrem a janela já com elas
+const hwCanCatch = e => !hwCam && !e.defaultPrevented && (document.getElementById('hw-drop')
+  || (currentScreen === 'ferramentas' && document.getElementById('modal').classList.contains('hidden') && !document.getElementById('hw-sheet')));
+document.addEventListener('paste', e => {
+  const fs = imagesFrom(e.clipboardData && e.clipboardData.files);
+  if(!fs.length || !hwCanCatch(e)) return;
+  e.preventDefault();
+  if(!document.getElementById('hw-drop')) openHwStart();
+  hwAddFiles(fs);
+});
+document.addEventListener('dragover', e => {
+  if(!e.dataTransfer || ![...e.dataTransfer.types].includes('Files') || !hwCanCatch(e)) return;
+  e.preventDefault();
+  const z = document.getElementById('hw-drop'); if(z) z.classList.add('hw-drag');
+});
+document.addEventListener('dragleave', e => { if(!e.relatedTarget){ const z = document.getElementById('hw-drop'); if(z) z.classList.remove('hw-drag'); } });
+document.addEventListener('drop', e => {
+  const z = document.getElementById('hw-drop'); if(z) z.classList.remove('hw-drag');
+  const fs = imagesFrom(e.dataTransfer && e.dataTransfer.files);
+  if(!fs.length || !hwCanCatch(e)) return;
+  e.preventDefault();
+  if(!document.getElementById('hw-drop')) openHwStart();
+  hwAddFiles(fs);
+});
 
 // ---- câmera ----
 let hwCam = null;
-async function openHwCamera(file){
+// opts.batch: fotos já guardadas para o mesmo dever; opts.edit: recortar a imagem n da janela do Dever de casa
+async function openHwCamera(file, opts = {}){
   if(hwCam) return;
   const o = document.createElement('div');
   o.id = 'hw-cam'; o.className = 'fixed inset-0 z-[58] bg-[#11180F] text-white flex flex-col select-none';
@@ -5253,11 +5389,12 @@ async function openHwCamera(file){
       </div>
     </div>
     <div class="pb-[max(14px,env(safe-area-inset-bottom))]">
+      <div id="hwc-batch" class="flex justify-center px-4 pt-2 empty:hidden" aria-live="polite"></div>
       <div id="hwc-subj" class="hw-chips flex gap-1 overflow-x-auto py-3 px-[calc(50%-48px)] snap-x snap-mandatory" role="radiogroup" aria-label="Matéria"></div>
       <div id="hwc-actions" class="grid grid-cols-3 items-center justify-items-center px-6 pt-1"></div>
     </div>`;
   document.body.appendChild(o);
-  hwCam = {el:o, back:document.activeElement, stream:null, track:null, torch:false, step:'cam', shot:null, crop:null};
+  hwCam = {el:o, back:document.activeElement, stream:null, track:null, torch:false, step:'cam', shot:null, crop:null, batch:opts.batch || [], edit:opts.edit};
   hwPaintModes(); hwPaintSubjects(); hwPaintActions();
   o.addEventListener('click', hwCamClick);
   document.addEventListener('keydown', hwCamKey);
@@ -5266,7 +5403,13 @@ async function openHwCamera(file){
   o.addEventListener('drop', e => { const [f] = imagesFrom(e.dataTransfer.files); if(f){ e.preventDefault(); hwUseFile(f); } });
   window.addEventListener('resize', hwLayoutCrop);
   o.querySelector('[data-hwc="close"]').focus();
-  if(file) hwUseFile(file); else hwStartCamera();
+  if(opts.edit != null){
+    // só recortar: sem matéria, sem modo e sem câmera
+    const t = hwTray[opts.edit];
+    o.querySelector('[data-hwc-modes]').classList.add('invisible'); document.getElementById('hwc-subj').classList.add('hidden');
+    hwToCrop(t.canvas, t.crop || {x:0, y:0, w:t.canvas.width, h:t.canvas.height});
+  }
+  else if(file) hwUseFile(file); else hwStartCamera();
 }
 function closeHwCamera(){
   if(!hwCam) return;
@@ -5278,7 +5421,7 @@ function closeHwCamera(){
   if(back && back.focus && document.body.contains(back)) back.focus();
 }
 function hwStopStream(){ if(hwCam && hwCam.stream){ hwCam.stream.getTracks().forEach(t => t.stop()); hwCam.stream = hwCam.track = null; hwCam.torch = false; } }
-const hwCamKey = e => { if(e.key === 'Escape' && hwCam){ e.preventDefault(); if(hwCam.step === 'crop' && hwCam.stream) hwBackToCam(); else closeHwCamera(); } };
+const hwCamKey = e => { if(e.key === 'Escape' && hwCam){ e.preventDefault(); if(hwCam.step === 'crop' && hwCam.stream && hwCam.edit == null) hwBackToCam(); else closeHwCamera(); } };
 const hwCamPaste = e => { const [f] = imagesFrom(e.clipboardData && e.clipboardData.files); if(f){ e.preventDefault(); hwUseFile(f); } };
 async function hwStartCamera(){
   const msg = (t, extra) => {
@@ -5367,11 +5510,25 @@ function hwPaintActions(){
         <span class="w-[62px] h-[62px] rounded-full grid place-items-center text-white" style="background:${s.cor}">${hwGlyph(s.k, 'w-8 h-8')}</span></button>
       ${sideBtn('type', 'type', 'Digitar')}`;
   } else {
-    el.innerHTML = `${sideBtn('retake', 'back', 'Refazer')}
-      <button type="button" data-hwc="solve" class="hw-shutter w-[78px] h-[78px] rounded-full grid place-items-center focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F4BC4E]" aria-label="Resolver com o Zen">
+    const edit = hwCam.edit != null;
+    el.innerHTML = `${sideBtn('retake', 'back', edit ? 'Cancelar' : 'Refazer')}
+      <button type="button" data-hwc="solve" class="hw-shutter w-[78px] h-[78px] rounded-full grid place-items-center focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F4BC4E]" aria-label="${edit ? 'Usar este recorte' : hwCam.batch.length ? `Resolver as ${hwCam.batch.length + 1} fotos com o Zen` : 'Resolver com o Zen'}">
         <span class="w-[62px] h-[62px] rounded-full grid place-items-center bg-[#F4BC4E] text-[#2B2412]">${hwIco('check', 'w-8 h-8')}</span></button>
       ${sideBtn('rotate', 'rotate', 'Girar')}`;
   }
+  hwPaintBatch();
+}
+// fotos guardadas para o mesmo dever (para questões que ocupam mais de uma foto, ou várias páginas)
+function hwPaintBatch(){
+  const el = document.getElementById('hwc-batch'); if(!el) return;
+  const b = hwCam.batch, n = b.length;
+  if(hwCam.edit != null) el.innerHTML = '';
+  else if(hwCam.step === 'cam') el.innerHTML = n ? `<div class="flex items-center gap-2.5 rounded-full bg-white/10 p-1.5 pl-2">
+      <span class="flex -space-x-2">${b.slice(-3).map(i => `<img src="${i.thumb}" alt="" class="w-7 h-7 rounded-full object-cover bg-white ring-2 ring-[#11180F]">`).join('')}</span>
+      <span class="text-[13px] font-semibold">${n === 1 ? '1 foto guardada' : `${n} fotos guardadas`}</span>
+      <button type="button" data-hwc="solveBatch" class="rounded-full bg-[#F4BC4E] text-[#2B2412] text-[13px] font-bold px-3 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Resolver agora</button>
+    </div>` : '';
+  else el.innerHTML = n + 1 < HW_MAX ? `<button type="button" data-hwc="more" class="rounded-full bg-white/10 hover:bg-white/20 px-3.5 py-1.5 text-[13.5px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-white">+ Guardar e tirar outra${n ? ` (${n + 1} até agora)` : ''}</button>` : '';
 }
 async function hwCamClick(e){
   const sb = e.target.closest('[data-hwc-subj]');
@@ -5388,9 +5545,11 @@ async function hwCamClick(e){
   if(a === 'gallery'){ const [f] = await pickImageFiles(false); if(f) hwUseFile(f); }
   if(a === 'native'){ const f = await hwNativeCamera(); if(f) hwUseFile(f); }
   if(a === 'type'){ closeHwCamera(); openHwTyped(); }
-  if(a === 'retake') hwBackToCam();
+  if(a === 'retake'){ if(hwCam.edit != null) closeHwCamera(); else hwBackToCam(); }
   if(a === 'rotate') hwRotate();
   if(a === 'solve') hwSolvePhoto();
+  if(a === 'more'){ hwCam.batch.push(hwImgFrom(hwCam.shot, hwCam.crop)); hwBackToCam(); }
+  if(a === 'solveBatch') hwSolveImgs(hwCam.batch);
 }
 // no celular, abre o app de câmera do próprio aparelho
 function hwNativeCamera(){
@@ -5503,11 +5662,17 @@ function hwCut(src, k, max, q){
   return c.toDataURL('image/jpeg', q);
 }
 function hwSolvePhoto(){
-  const k = hwCam.crop, url = hwCut(hwCam.shot, k, 1600, .88);
-  const img = {mime:'image/jpeg', data:url.split(',')[1], url, thumb:hwCut(hwCam.shot, k, 480, .72), small:hwCut(hwCam.shot, k, 360, .62)};
-  const mode = hwPref.mode, sk = hwPref.k;
+  // recortando uma imagem da janela do Dever de casa: o recorte volta para a lista
+  if(hwCam.edit != null){
+    const t = hwTray[hwCam.edit];
+    if(t){ t.canvas = hwCam.shot; t.crop = hwCam.crop; t.img = hwImgFrom(hwCam.shot, hwCam.crop); }
+    closeHwCamera(); paintHwTray(); return;
+  }
+  hwSolveImgs([...hwCam.batch, hwImgFrom(hwCam.shot, hwCam.crop)]);
+}
+function hwSolveImgs(imgs){
   closeHwCamera();
-  openHwSolution({id:'hw' + Date.now().toString(36), at:Date.now(), k:sk, chosen:sk !== 'auto', mode, img, text:'', data:null, thread:[], sel:0});
+  openHwSolution(hwNewEntry({imgs}));
 }
 
 // ---- digitar a questão ----
@@ -5525,15 +5690,16 @@ function openHwTyped(){
     const q = document.getElementById('hwt-q').value.trim(), k = document.getElementById('hwt-k').value;
     if(!q){ document.getElementById('hwt-st').textContent = 'Escreva a questão primeiro.'; return document.getElementById('hwt-q').focus(); }
     hwPref.k = k; saveHwPref(); closeModal();
-    openHwSolution({id:'hw' + Date.now().toString(36), at:Date.now(), k, chosen:k !== 'auto', mode:'um', img:null, text:q, data:null, thread:[], sel:0});
+    openHwSolution(hwNewEntry({k, chosen:k !== 'auto', mode:'um', text:q}));
   });
 }
 
 // ---- solução ----
 let hwCur = null;
-const hwFromSaved = h => ({...h, img:null, thumbOnly:h.thumb, data:JSON.parse(JSON.stringify(h.data)), thread:[...(h.thread || [])], sel:0, saved:true});
+const hwFromSaved = h => ({...h, imgs:[], thumbOnly:h.thumb, data:JSON.parse(JSON.stringify(h.data)), thread:[...(h.thread || [])], sel:0, saved:true});
 function hwRemember(e){
-  const rec = {id:e.id, at:e.at, k:e.k, mode:e.mode, thumb:e.img ? e.img.small : e.thumbOnly || null, text:e.text, data:e.data, thread:e.thread.filter(m => m.role !== 'err').slice(-20)};
+  // no histórico fica só a miniatura da primeira imagem (e quantas eram)
+  const rec = {id:e.id, at:e.at, k:e.k, mode:e.mode, thumb:e.imgs.length ? e.imgs[0].small : e.thumbOnly || null, n:e.imgs.length || e.n || 0, text:e.text, data:e.data, thread:e.thread.filter(m => m.role !== 'err').slice(-20)};
   const i = HW.findIndex(h => h.id === e.id);
   if(i >= 0) HW[i] = rec; else HW.unshift(rec);
   HW.length = Math.min(HW.length, 30);
@@ -5579,11 +5745,11 @@ const hwSheetKey = e => {
 const hwQ = () => hwCur && hwCur.data && hwCur.data.questoes[hwCur.sel];
 function renderHwSheet(){
   const e = hwCur, body = document.getElementById('hws-body'); if(!e || !body) return;
-  const s = hwSubj(e.k), Q = hwQ(), pic = e.img ? e.img.url : e.thumbOnly;
+  const s = hwSubj(e.k), Q = hwQ(), pics = e.imgs.length ? e.imgs.map(i => i.url) : e.thumbOnly ? [e.thumbOnly] : [], many = e.imgs.length > 1;
   const chip = `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold" style="background:${s.tom};color:${s.cor}">${hwGlyph(e.k, 'w-4 h-4 !text-[15px]')}${s.nome}</span>`;
   // a questão (foto + o texto que o Zen leu)
   let html = `<section class="rounded-2xl bg-paper border border-line shadow-card overflow-hidden" aria-label="A questão">
-    ${pic ? `<div class="relative bg-[#11180F] grid place-items-center ${e.busy ? 'hw-scan' : ''}"><img src="${pic}" alt="Foto da questão" class="max-h-[260px] w-auto max-w-full object-contain"></div>` : ''}
+    ${pics.length ? `<div class="relative bg-[#11180F] ${many ? 'flex gap-2 overflow-x-auto p-2' : 'grid place-items-center'} ${e.busy ? 'hw-scan' : ''}">${pics.map((u, i) => `<img src="${u}" alt="${many ? `Imagem ${i + 1} da questão` : 'Foto da questão'}" class="${many ? 'h-[200px] w-auto shrink-0 rounded-md bg-white' : 'max-h-[260px] w-auto max-w-full'} object-contain">`).join('')}</div>` : ''}
     <div class="px-5 py-4">
       <div class="flex flex-wrap items-center gap-2">${chip}${e.mode === 'pagina' ? '<span class="text-[13px] text-muted">Página inteira</span>' : ''}</div>
       ${Q && Q.enunciado ? `<div class="zen-md mt-3 !text-[15.5px]">${md(Q.enunciado)}</div>` : e.text ? `<p class="mt-3 text-[15.5px] whitespace-pre-wrap">${esc(e.text)}</p>` : ''}
@@ -5591,14 +5757,14 @@ function renderHwSheet(){
   if(e.busy){
     html += `<div class="mt-5 flex items-center gap-3 rounded-2xl bg-paper border border-line px-5 py-4" role="status">
       <svg class="capy-float w-[64px] h-auto aspect-[172/160] shrink-0" aria-hidden="true"><use href="#capy-happy"/></svg>
-      <div><p class="font-bold text-[16px]">${e.img ? 'O Zen está lendo a questão...' : 'O Zen está resolvendo...'}</p><p class="text-[14px] text-muted">Já já chegam a resposta e o passo a passo.</p></div></div>`;
+      <div><p class="font-bold text-[16px]">${many ? `O Zen está lendo as ${e.imgs.length} imagens...` : e.imgs.length ? 'O Zen está lendo a questão...' : 'O Zen está resolvendo...'}</p><p class="text-[14px] text-muted">Já já chegam a resposta e o passo a passo.</p></div></div>`;
   } else if(e.err){
     const set = ['semchave', 'chave', 'modelo'].includes(e.err.code);
     html += `<div class="mt-5 rounded-2xl bg-sand border border-[#E6D9B8] px-5 py-4">
       <p class="text-[15px]">${esc(e.errMsg || zenErrorText(e.err))}</p>
       <div class="mt-3 flex flex-wrap gap-2">${set ? `<button type="button" data-hws="settings" class="${btnPrimary} !py-2 !text-[14px]">Abrir Configurações</button>` : ''}
         <button type="button" data-hws="retry" class="${btnSoft} !py-2 !text-[14px]">Tentar de novo</button>
-        ${e.img ? `<button type="button" data-hws="new" class="${btnSoft} !py-2 !text-[14px]">Tirar outra foto</button>` : ''}</div></div>`;
+        ${e.imgs.length ? `<button type="button" data-hws="new" class="${btnSoft} !py-2 !text-[14px]">Tirar outra foto</button>` : ''}</div></div>`;
   } else if(Q){
     html += hwSolutionHTML(e, Q);
   }
@@ -5679,15 +5845,18 @@ const HW_FORMAT = `{"materia":"${SUBJECTS.map(s => s.k).join('|')}","questoes":[
 async function hwSolve(){
   const e = hwCur, subj = subjectOf(e.k);
   e.busy = true; e.err = null; e.errMsg = ''; renderHwSheet();
-  const what = e.img ? (e.mode === 'pagina' ? 'A foto é uma página de dever de casa. Resolva TODAS as questões que aparecem nela (até 8), na ordem em que aparecem.'
-    : 'A foto mostra uma questão de dever de casa. Resolva a questão principal (se aparecerem várias, a que está inteira e mais no centro).')
+  const n = e.imgs.length;
+  const what = n > 1 ? (e.mode === 'pagina' ? `As ${n} imagens são do mesmo dever de casa (podem ser páginas diferentes). Resolva TODAS as questões que aparecem nelas (até 8), na ordem das imagens.`
+      : `As ${n} imagens são da mesma questão de dever de casa (o enunciado, uma figura ou as alternativas podem estar em imagens diferentes). Junte tudo e resolva essa questão.`)
+    : n ? (e.mode === 'pagina' ? 'A foto é uma página de dever de casa. Resolva TODAS as questões que aparecem nela (até 8), na ordem em que aparecem.'
+      : 'A foto mostra uma questão de dever de casa. Resolva a questão principal (se aparecerem várias, a que está inteira e mais no centro).')
     : `Resolva esta questão de dever de casa:\n\n${e.text}`;
   const prompt = `${what}
 ${subj ? `Matéria: ${subj.nome}.` : 'Descubra de que matéria é.'}
 Explique como um bom professor explicaria para mim, aluno do ensino médio: de 2 a 8 passos curtos, cada um com o porquê, sem pular contas. Confira a conta no fim. Se for de interpretação, redação ou opinião, mostre o caminho e um exemplo de resposta.
 Formato: ${HW_FORMAT}`;
   try{
-    const d = await askGeminiJSON(prompt, zenSystemPrompt(), e.img ? [e.img] : []);
+    const d = await askGeminiJSON(prompt, zenSystemPrompt(), e.imgs);
     const txt = v => String(v == null ? '' : v).trim();
     const qs = (d.questoes || d.questions || []).filter(q => q && (q.resposta || (q.passos || []).length)).slice(0, 8).map(q => ({
       enunciado:txt(q.enunciado), conceito:txt(q.conceito), resposta:txt(q.resposta) || '—', cuidado:txt(q.cuidado),
@@ -5711,7 +5880,7 @@ Passos:
 ${Q.passos.map((p, i) => `${i + 1}. ${p.titulo ? p.titulo + ': ' : ''}${p.texto}`).join('\n')}`;
 async function hwAskZen(prompt){
   const e = hwCur;
-  const parts = [...imgParts(e.img ? [e.img] : []), {text:prompt + '\n\nResponda curto (até 150 palavras), em markdown, com fórmulas em LaTeX.'}];
+  const parts = [...imgParts(e.imgs), {text:prompt + '\n\nResponda curto (até 150 palavras), em markdown, com fórmulas em LaTeX.'}];
   return (await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts}]})).text;
 }
 async function hwAsk(text){
@@ -5792,8 +5961,8 @@ async function hwSheetClick(ev){
     saveStats(); toast('Virou flashcard. Ele aparece na sua revisão.');
   }
   if(a === 'chat'){
-    const img = e.img; closeHwSheet(); location.hash = 'chat';
-    sendChat(`Estou fazendo esta questão do dever de casa:\n${Q.enunciado || e.text}\n\nA resposta é ${Q.resposta}. Me explica com calma a parte mais difícil e depois me faz uma pergunta para ver se eu entendi.`, img ? [img] : undefined);
+    const imgs = e.imgs.slice(0, ATTACH_MAX); closeHwSheet(); location.hash = 'chat';
+    sendChat(`Estou fazendo esta questão do dever de casa:\n${Q.enunciado || e.text}\n\nA resposta é ${Q.resposta}. Me explica com calma a parte mais difícil e depois me faz uma pergunta para ver se eu entendi.`, imgs.length ? imgs : undefined);
   }
   if(a === 'copy') navigator.clipboard.writeText(hwMarkdown(e, Q)).then(() => toast('Copiado.'), () => toast('Não deu para copiar.'));
 }
