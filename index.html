@@ -516,7 +516,10 @@
             <div class="flex items-center gap-3 min-w-0">
               <h1 class="text-[28px] sm:text-[32px] font-extrabold tracking-tight leading-tight">Quadro branco</h1>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <button id="wb-share" type="button" class="inline-flex items-center gap-2 rounded-xl bg-paper border border-line shadow-card px-3.5 py-2 text-[14px] font-semibold hover:bg-sand disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
+                <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.9-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><circle cx="17" cy="9" r="2.6"/><path d="M15.8 14.3c2.4-.2 4.3 1.3 4.7 4.2"/></svg><span>Estudar junto</span>
+              </button>
               <button id="wb-zen" type="button" class="inline-flex items-center gap-2 rounded-xl bg-paper border border-line shadow-card px-3.5 py-2 text-[14px] font-semibold hover:bg-sand disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
                 <svg class="w-[18px] h-[18px]" aria-hidden="true"><use href="#zen-head"/></svg><span>Zen, olha o quadro</span>
               </button>
@@ -527,7 +530,16 @@
             </div>
           </header>
 
-          <div id="wb-layout" class="mt-5 grid grid-cols-1 gap-5 items-start">
+          <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <div id="wb-boards" class="flex flex-wrap items-center gap-2" role="group" aria-label="Seus quadros"></div>
+            <div class="flex items-center gap-5 text-[14px] font-semibold">
+              <button id="wb-rename" type="button" class="text-forest-700 hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Renomear</button>
+              <button id="wb-del" type="button" class="text-[#B4472F] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Apagar</button>
+            </div>
+          </div>
+          <div id="wb-live" class="mt-4 rounded-2xl bg-paper border border-line shadow-card px-5 py-4"></div>
+
+          <div id="wb-layout" class="mt-4 grid grid-cols-1 gap-5 items-start">
             <div class="min-w-0">
               <div id="wb-toolbar" class="mx-auto w-fit max-w-full flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-paper border border-line shadow-card p-1.5" role="toolbar" aria-label="Ferramentas do quadro"></div>
               <div id="wb-wrap" class="relative mt-4 rounded-[22px] bg-paper border border-line shadow-window overflow-hidden">
@@ -863,7 +875,7 @@ const PROFILES = {
   antonio: {id:'antonio', nome:'Antonio', prefix:'zenTeste_antonio_', amigo:'lucca'}
 };
 const GLS = 'zenTeste_';                         // chaves globais: apiKey, settings, profile
-const GLOBAL_KEYS = ['apiKey', 'settings', 'profile'];
+const GLOBAL_KEYS = ['apiKey', 'settings', 'profile', 'aparelho'];
 const USER = PROFILES[(() => { try{ const v = localStorage.getItem(GLS + 'profile'); return v && v.startsWith('"') ? JSON.parse(v) : v; }catch(err){ return null; } })()] || null;
 const ME = USER || PROFILES.lucca;                // até escolher, mostra como Lucca por trás da janela de escolha
 const FRIEND = PROFILES[ME.amigo];
@@ -1110,6 +1122,11 @@ function openSettings(){
       </div>
     </section>
     <section class="mt-5 pt-5 border-t border-line">
+      <h3 class="font-bold text-[16px]">Quadro ao vivo</h3>
+      <p class="mt-1 text-[14px] text-ink-2">Os quadros compartilhados passam por 3 servidores públicos ao mesmo tempo, como no app original. Basta um funcionar.</p>
+      <button id="set-live-test" type="button" class="${btnSoft} mt-3">Testar servidores</button>
+    </section>
+    <section class="mt-5 pt-5 border-t border-line">
       <h3 class="font-bold text-[16px]">Dados deste teste</h3>
       <p class="mt-1 text-[14px] text-ink-2">Tudo do perfil ${ME.nome} (anotações, quadro, resumos, flashcards, questões, conversas, XP, boletim e calendário) fica salvo neste navegador. Apagar não mexe no perfil do ${FRIEND.nome}. Os arquivos ficam no banco do navegador e saem também.</p>
       <button id="set-wipe" type="button" class="${btnSoft} mt-3 text-[#B4472F]">Apagar tudo do perfil ${ME.nome}</button>
@@ -1138,6 +1155,7 @@ function openSettings(){
   document.getElementById('set-del').addEventListener('click', e => { setKey(''); e.currentTarget.disabled = true; keyInput.placeholder = 'Cole a chave aqui (começa com AIza)'; status('Chave apagada deste navegador.', true); });
   document.getElementById('set-main').addEventListener('change', e => { SETTINGS.main = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-backup').addEventListener('change', e => { SETTINGS.backup = e.target.value; saveSettings(); paintKeyStatus(); });
+  document.getElementById('set-live-test').addEventListener('click', openServerTest);
   document.getElementById('set-wipe').addEventListener('click', () => {
     if(!confirm(`Apagar TUDO do perfil ${ME.nome} neste navegador? Isso não tem volta.`)) return;
     window.onbeforeunload = null; window.__wiping = true;
@@ -1358,7 +1376,7 @@ const scheduleChecks = debounce(() => {
   if(currentScreen === 'inicio' || currentScreen === 'conquistas') SCREEN_REFRESH[currentScreen]();
 }, 350);
 
-// ---------- Ranking da semana entre o Lucca e o Antonio (neste aparelho) ----------
+// ---------- Ranking da semana entre o Lucca e o Antonio (neste aparelho ou pela conexão ao vivo) ----------
 function rankStatsFrom(st, sunday){
   if(!st) return null;
   const r = {xp:0, min:0, ok:0, days:0};
@@ -1369,13 +1387,26 @@ function rankStatsFrom(st, sunday){
   r.min = Math.round(r.min);
   return r;
 }
-const friendStats = () => friendStore.get('stats', null);
+// o placar do amigo vem do perfil dele neste aparelho e do que chega pela conexão ao vivo (vale o maior de cada dia)
+const friendStats = () => {
+  const local = friendStore.get('stats', null), remote = store.get('rankAmigo', null);
+  if(!remote) return local;
+  const out = Object.assign({}, local);
+  ['xpLog', 'studyLog', 'qLog'].forEach(k => {
+    out[k] = Object.assign({}, (local || {})[k]);
+    Object.entries(remote[k] || {}).forEach(([d, v]) => {
+      const cur = out[k][d];
+      if(k === 'qLog' ? (v.ok || 0) > ((cur || {}).ok || 0) : v > (cur || 0)) out[k][d] = v;
+    });
+  });
+  return out;
+};
 // fecha a semana passada: quem fez mais XP ganha +50 XP e o troféu
 function settleLastWeek(){
   const last = shiftKey(weekStartKey(), -7);
   if(STATS.rankHistory.some(h => h.week === last)) return;
   const me = rankStatsFrom(STATS, last), op = rankStatsFrom(friendStats(), last);
-  if(!me || !op || (!me.xp && !op.xp)) return;   // só vale se os dois já estudaram neste aparelho
+  if(!me || !op || (!me.xp && !op.xp)) return;   // só vale se os dois já estudaram
   const winner = !op || me.xp > op.xp ? 'me' : me.xp < op.xp ? 'op' : 'empate';
   STATS.rankHistory.push({week:last, me:me.xp, op:op ? op.xp : 0, winner}); saveStats();
   if(winner === 'me'){ addXP(50, 'conquista'); setTimeout(() => toast(`👑 Você ganhou a semana contra o ${FRIEND.nome}! +50 XP`), 1800); }
@@ -3477,13 +3508,47 @@ const WB_TOOLS = [
   ['ellipse', 'Círculo (O)', '<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>'],
   ['text', 'Texto (T)', '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>']
 ];
-const wb = {tool:'pen', color:'#1E2A1B', size:6, items:[], past:[], future:[], cur:null, textAt:null};
+const wb = {tool:'pen', color:'#1E2A1B', size:6, items:[], past:[], future:[], cur:null, textAt:null, remote:{}};
+let live = null, liveNet = null, liveFriends = {};   // quadro ao vivo (a conexão fica mais abaixo)
 
-
-// o quadro salvo neste navegador substitui o desenho de exemplo
-const savedBoard = store.get('board');
-if(Array.isArray(savedBoard)) wb.items = savedBoard;
-const saveBoard = debounce(() => store.set('board', wb.items), 400);
+// ---------- Vários quadros ----------
+// Cada traço tem id e hora: dá para desfazer só o que é seu e desenhar junto ao vivo sem um apagar o do outro
+const wbId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const WB_KINDS = ['pen', 'marker', 'eraser', 'line', 'rect', 'ellipse', 'text'];
+const okItem = it => it && typeof it.id === 'string' && WB_KINDS.includes(it.t) && typeof it.color === 'string' && it.color.length < 30 && typeof it.size === 'number';
+const BOARDS = (() => {
+  let list = store.get('quadros', null);
+  if(!Array.isArray(list) || !list.length){
+    const old = store.get('board', null);     // o quadro único das versões anteriores vira o primeiro
+    list = [{id:wbId(), nome:'Meu quadro', items:Array.isArray(old) ? old : [], tomb:[], at:Date.now()}];
+  }
+  list.forEach(b => {
+    b.items = (b.items || []).filter(it => it && WB_KINDS.includes(it.t)); b.tomb = b.tomb || [];
+    b.items.forEach((it, k) => { if(!it.id) it.id = wbId() + k; if(!it.ts) it.ts = k + 1; });
+  });
+  return list;
+})();
+let wbBoard = BOARDS.find(b => b.id === store.get('quadroAtual', null)) || BOARDS[0];
+wb.items = wbBoard.items;
+const saveBoards = debounce(() => { store.set('quadros', BOARDS); if(USER) store.del('board'); }, 400);
+// Toda mudança é {add:[traços], del:[traços ou ids]}; os apagados viram "lápide" para não voltarem quando os dois juntam
+function wbApplyTo(b, op){
+  const add = (op.add || []).filter(okItem), delIds = new Set((op.del || []).map(it => it.id || it));
+  const addIds = new Set(add.map(it => it.id));
+  if(delIds.size) b.tomb = [...new Set(b.tomb.concat([...delIds]))].slice(-3000);
+  if(addIds.size) b.tomb = b.tomb.filter(id => !addIds.has(id));
+  b.items = b.items.filter(it => !delIds.has(it.id) && !addIds.has(it.id)).concat(add);
+  if(add.length) b.items.sort((x, y) => (x.ts || 0) - (y.ts || 0));
+  b.at = Date.now();
+  if(b === wbBoard) wb.items = b.items;
+  saveBoards();
+}
+function wbDo(op, record = true){
+  wbApplyTo(wbBoard, op);
+  if(record){ wb.past.push(op); if(wb.past.length > 80) wb.past.shift(); wb.future = []; }
+  liveSendOp(wbBoard, op);
+  wbRender(); paintWbTools();
+}
 const wbCanvas = document.getElementById('wb-canvas'), wbCtx = wbCanvas.getContext('2d');
 function wbDraw(ctx, it){
   ctx.save();
@@ -3514,14 +3579,16 @@ function wbRender(){
   wbCtx.setTransform(pw / WB_W, 0, 0, ph / WB_H, 0, 0);
   wbCtx.clearRect(0, 0, WB_W, WB_H);
   wb.items.forEach(it => wbDraw(wbCtx, it));
+  const now = Date.now();     // traço que o amigo ainda está fazendo
+  Object.entries(wb.remote).forEach(([id, r]) => { if(now - r.at > 8000) delete wb.remote[id]; else wbDraw(wbCtx, r.item); });
   if(wb.cur) wbDraw(wbCtx, wb.cur);
 }
 new ResizeObserver(wbRender).observe(wbCanvas);
 if(document.fonts) document.fonts.ready.then(wbRender);
 
-const wbSnapshot = () => { wb.past.push(structuredClone(wb.items)); if(wb.past.length > 80) wb.past.shift(); wb.future = []; };
-function wbUndo(){ if(!wb.past.length) return; wb.future.push(wb.items); wb.items = wb.past.pop(); wbRender(); paintWbTools(); }
-function wbRedo(){ if(!wb.future.length) return; wb.past.push(wb.items); wb.items = wb.future.pop(); wbRender(); paintWbTools(); }
+// desfazer e refazer só mexem no que você fez (o que o amigo desenhou fica)
+function wbUndo(){ const op = wb.past.pop(); if(!op) return; wb.future.push(op); wbDo({add:op.del, del:op.add}, false); }
+function wbRedo(){ const op = wb.future.pop(); if(!op) return; wb.past.push(op); wbDo(op, false); }
 
 const wbBtn = (attr, label, inner) => `<button type="button" ${attr} title="${label}" aria-label="${label}" class="wb-btn w-10 h-10 rounded-xl grid place-items-center text-ink-2 hover:bg-sand disabled:opacity-35 disabled:hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${inner}</button>`;
 const wbIco = p => `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -3544,7 +3611,6 @@ function paintWbTools(){
   document.querySelector('#wb-toolbar [data-act="undo"]').disabled = !wb.past.length;
   document.querySelector('#wb-toolbar [data-act="redo"]').disabled = !wb.future.length;
   wbCanvas.style.cursor = wb.tool === 'text' ? 'text' : 'crosshair';
-  saveBoard();
 }
 paintWbTools();
 document.getElementById('wb-toolbar').addEventListener('click', e => {
@@ -3554,18 +3620,18 @@ document.getElementById('wb-toolbar').addEventListener('click', e => {
   if(b.dataset.size) wb.size = +b.dataset.size;
   if(b.dataset.act === 'undo') wbUndo();
   if(b.dataset.act === 'redo') wbRedo();
-  if(b.dataset.act === 'clear' && wb.items.length){ wbSnapshot(); wb.items = []; wbRender(); toast('Quadro limpo. Use desfazer para trazer de volta.'); }
+  if(b.dataset.act === 'clear' && wb.items.length){ wbDo({add:[], del:wb.items.slice()}); toast('Quadro limpo. Use desfazer para trazer de volta.'); }
   paintWbTools();
 });
-const wbPos = e => { const r = wbCanvas.getBoundingClientRect(); return [(e.clientX - r.left) * WB_W / r.width, (e.clientY - r.top) * WB_H / r.height]; };
+const wbPos = e => { const r = wbCanvas.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * WB_W / r.width * 10) / 10, Math.round((e.clientY - r.top) * WB_H / r.height * 10) / 10]; };
 wbCanvas.addEventListener('pointerdown', e => {
   if(e.button > 0) return;
   const p = wbPos(e);
   if(wb.tool === 'text'){ openWbText(p); e.preventDefault(); return; }
-  wbSnapshot();
+  const base = {id:wbId(), ts:Date.now(), t:wb.tool, color:wb.color};
   wb.cur = ['pen', 'marker', 'eraser'].includes(wb.tool)
-    ? {t:wb.tool, color:wb.color, size:wb.tool === 'marker' ? wb.size * 3 + 10 : wb.tool === 'eraser' ? wb.size * 4 + 16 : wb.size, pts:[p]}
-    : {t:wb.tool, color:wb.color, size:wb.size, x1:p[0], y1:p[1], x2:p[0], y2:p[1]};
+    ? {...base, size:wb.tool === 'marker' ? wb.size * 3 + 10 : wb.tool === 'eraser' ? wb.size * 4 + 16 : wb.size, pts:[p]}
+    : {...base, size:wb.size, x1:p[0], y1:p[1], x2:p[0], y2:p[1]};
   wbCanvas.setPointerCapture(e.pointerId);
   wbRender();
 });
@@ -3573,11 +3639,12 @@ wbCanvas.addEventListener('pointermove', e => {
   if(!wb.cur) return;
   const p = wbPos(e);
   if(wb.cur.pts) wb.cur.pts.push(p); else { wb.cur.x2 = p[0]; wb.cur.y2 = p[1]; }
-  wbRender();
+  wbRender(); liveProgress();
 });
 ['pointerup', 'pointercancel'].forEach(t => wbCanvas.addEventListener(t, () => {
   if(!wb.cur) return;
-  wb.items.push(wb.cur); wb.cur = null; wbRender(); paintWbTools();
+  const it = wb.cur; wb.cur = null;
+  wbDo({add:[it], del:[]});
 }));
 // texto: uma caixinha aparece onde você clicou
 const wbText = document.getElementById('wb-text');
@@ -3591,10 +3658,49 @@ function closeWbText(save){
   if(!wb.textAt) return;
   const v = wbText.value.trim(), a = wb.textAt; wb.textAt = null;
   wbText.classList.add('hidden');
-  if(save && v){ wbSnapshot(); wb.items.push({t:'text', color:a.color, size:a.size, x:a.x, y:a.y, text:v}); wbRender(); paintWbTools(); }
+  if(save && v) wbDo({add:[{id:wbId(), ts:Date.now(), t:'text', color:a.color, size:a.size, x:a.x, y:a.y, text:v.slice(0, 300)}], del:[]});
 }
 wbText.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); closeWbText(true); } if(e.key === 'Escape') closeWbText(false); });
 wbText.addEventListener('blur', () => closeWbText(true));
+
+// lista de quadros: abrir, criar, renomear e apagar
+function wbOpen(id){
+  const b = BOARDS.find(x => x.id === id); if(!b) return;
+  closeWbText(true);
+  wbBoard = b; wb.items = b.items; wb.past = []; wb.future = []; wb.remote = {}; wb.cur = null;
+  store.set('quadroAtual', b.id);
+  renderWbBoards(); renderLive(); wbRender(); paintWbTools();
+}
+function renderWbBoards(){
+  document.getElementById('wb-boards').innerHTML = BOARDS.map(b => {
+    const on = b === wbBoard, isLive = live && live.boardId === b.id;
+    return `<button type="button" data-wb-open="${b.id}" aria-pressed="${on}" class="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[14px] font-semibold border focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${on ? 'bg-forest-700 border-forest-700 text-[#F3F1E6]' : 'bg-paper border-line text-ink-2 hover:bg-sand'}">${isLive ? '<span class="w-2 h-2 rounded-full bg-[#5FBF4A]" title="Ao vivo"></span>' : ''}${esc(b.nome)}</button>`;
+  }).join('') + '<button type="button" data-wb-new class="rounded-full px-4 py-1.5 text-[14px] font-semibold border border-dashed border-line text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">+ Novo quadro</button>';
+}
+function openBoardName(title, value, onSave){
+  openModal(`${modalHead(title)}
+    <form id="bn-form" class="mt-4"><input id="bn-name" class="${fieldCls}" maxlength="60" value="${esc(value)}" aria-label="Nome do quadro">
+      <div class="mt-5 flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button class="${btnPrimary}">Salvar</button></div></form>`);
+  const inp = document.getElementById('bn-name'); inp.select();
+  document.getElementById('bn-form').addEventListener('submit', e => { e.preventDefault(); const v = inp.value.trim(); if(!v) return inp.focus(); closeModal(); onSave(v.slice(0, 60)); });
+}
+document.getElementById('wb-boards').addEventListener('click', e => {
+  const o = e.target.closest('[data-wb-open]'); if(o) return wbOpen(o.dataset.wbOpen);
+  if(e.target.closest('[data-wb-new]')) openBoardName('Novo quadro', `Quadro ${BOARDS.length + 1}`, nome => {
+    const b = {id:wbId(), nome, items:[], tomb:[], at:Date.now()}; BOARDS.push(b); saveBoards(); wbOpen(b.id);
+  });
+});
+document.getElementById('wb-rename').addEventListener('click', () => openBoardName('Renomear quadro', wbBoard.nome, nome => {
+  wbBoard.nome = nome; saveBoards(); renderWbBoards();
+  if(live && live.boardId === wbBoard.id){ livePublish({type:'meta', nome}); publishWho(); }
+}));
+document.getElementById('wb-del').addEventListener('click', () => {
+  if(!confirm(`Apagar o quadro "${wbBoard.nome}"? O desenho sai deste aparelho.`)) return;
+  if(live && live.boardId === wbBoard.id) stopLive(true);
+  BOARDS.splice(BOARDS.indexOf(wbBoard), 1);
+  if(!BOARDS.length) BOARDS.push({id:wbId(), nome:'Meu quadro', items:[], tomb:[], at:Date.now()});
+  saveBoards(); wbOpen(BOARDS[0].id);
+});
 document.getElementById('wb-export').addEventListener('click', () => {
   const c = document.createElement('canvas'); c.width = WB_W; c.height = WB_H;
   const x = c.getContext('2d'); x.fillStyle = '#FFFDF8'; x.fillRect(0, 0, WB_W, WB_H);
@@ -3623,6 +3729,381 @@ document.getElementById('wb-zen').addEventListener('click', async e => {
   }catch(err){ toast(zenErrorText(err)); }
   b.disabled = false; b.querySelector('span').textContent = 'Zen, olha o quadro';
 });
+
+// ---------- Quadro compartilhado ao vivo ----------
+// A mesma conexão do app original: 3 servidores públicos de mensagens (MQTT) ao mesmo tempo, basta um funcionar,
+// e a mesma sala da dupla. O canal é outro ("teste1"), para esta versão não se misturar com o quadro do index.html.
+const SALA_DA_DUPLA = 'rfpy5fn84ex3x7rr';
+const LIVE_NS = 'zenestudos/teste1';
+const LIVE_VERSION = 1;                         // as duas cópias do teste precisam ser da mesma versão
+const MQTT_LIB = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
+const LIVE_BROKERS = [
+  {name:'HiveMQ',    url:'wss://broker.hivemq.com:8884/mqtt'},
+  {name:'EMQX',      url:'wss://broker.emqx.io:8084/mqtt'},
+  {name:'Mosquitto', url:'wss://test.mosquitto.org:8081'}
+];
+const LIVE_CHUNK = 60000;
+const DEVICE = (() => { let d = gstore.get('aparelho', null); if(!d){ d = 'd' + wbId(); gstore.set('aparelho', d); } return d; })();
+const whoTopic = dev => `${LIVE_NS}/${SALA_DA_DUPLA}/who/${dev}`;
+const boardTopic = share => `${LIVE_NS}/b/${share}`;
+const liveMe = () => ({pid:ME.id, nome:ME.nome, avatar:PROFILE_AVATAR[ME.id], dev:DEVICE});
+const liveBoard = () => live ? BOARDS.find(b => b.id === live.boardId) : null;
+const liveOnline = () => liveNet ? liveNet.clients.filter(c => c.connected).length : 0;
+function loadMqtt(){
+  if(window.mqtt) return Promise.resolve();
+  if(!loadMqtt.p) loadMqtt.p = new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = MQTT_LIB; s.onload = ok;
+    s.onerror = () => { loadMqtt.p = null; s.remove(); no(new Error('mqtt')); };
+    document.head.appendChild(s);
+  });
+  return loadMqtt.p;
+}
+
+// rede: liga nos 3 servidores e fica ligada enquanto o app está aberto; a mesma mensagem chega por até 3 caminhos
+async function netStart(){
+  if(liveNet) return liveNet;
+  if(!USER) return null;                         // só conecta depois de escolher o perfil
+  try{ await loadMqtt(); }catch(err){ return null; }
+  if(liveNet) return liveNet;
+  liveNet = {clients:[], subs:new Set([`${LIVE_NS}/${SALA_DA_DUPLA}/who/+`]), seen:new Map(), src:'s_' + wbId()};
+  LIVE_BROKERS.forEach(br => {
+    let c;
+    try{
+      c = mqtt.connect(br.url, {clientId:'zent_' + wbId(), clean:true, connectTimeout:12000, reconnectPeriod:4000, keepalive:45,
+        will:{topic:whoTopic(DEVICE), payload:'', qos:1, retain:true}});   // se a conexão cair, o servidor avisa a dupla
+    }catch(err){ return; }
+    c.brName = br.name;
+    c.on('connect', () => {
+      liveNet.subs.forEach(t => c.subscribe(t, {qos:1}));
+      publishWho();
+      if(live) setTimeout(() => live && livePublish({type:'hello', resync:true}), 400);
+      renderLive();
+    });
+    c.on('close', renderLive); c.on('offline', renderLive);
+    c.on('error', () => {});
+    c.on('message', onNetMessage);
+    liveNet.clients.push(c);
+  });
+  liveNet.timer = setInterval(() => { publishWho(); pruneFriends(); }, 25000);
+  renderLive();
+  return liveNet;
+}
+function netSubscribe(t){ if(!liveNet) return; liveNet.subs.add(t); liveNet.clients.forEach(c => { if(c.connected) c.subscribe(t, {qos:1}); }); }
+function netUnsubscribe(t){ if(!liveNet) return; liveNet.subs.delete(t); liveNet.clients.forEach(c => { if(c.connected) c.unsubscribe(t); }); }
+function netPublish(topic, payload, opts){
+  if(!liveNet) return 0;
+  let n = 0;
+  liveNet.clients.forEach(c => { if(c.connected){ try{ c.publish(topic, payload, Object.assign({qos:1}, opts)); n++; }catch(err){} } });
+  return n;
+}
+// placar das duas últimas semanas, para o ranking da dupla funcionar entre computadores diferentes
+function myRankLogs(){
+  const out = {xpLog:{}, studyLog:{}, qLog:{}};
+  for(let i = 0; i < 14; i++){
+    const k = shiftKey(dayKey(), -i);
+    const x = (STATS.xpLog || {})[k], m = (STATS.studyLog || {})[k], q = (STATS.qLog || {})[k];
+    if(x) out.xpLog[k] = x;
+    if(m) out.studyLog[k] = Math.round(m);
+    if(q && q.ok) out.qLog[k] = {ok:q.ok};
+  }
+  return out;
+}
+function mergeFriendRank(rank){
+  const clean = {};
+  ['xpLog', 'studyLog', 'qLog'].forEach(f => {
+    clean[f] = {};
+    Object.entries(rank[f] || {}).slice(0, 20).forEach(([k, v]) => { if(/^\d{4}-\d{2}-\d{2}$/.test(k)) clean[f][k] = f === 'qLog' ? {ok:+(v && v.ok) || 0} : +v || 0; });
+  });
+  const s = JSON.stringify(clean); if(s === mergeFriendRank.last) return;
+  mergeFriendRank.last = s; store.set('rankAmigo', clean);
+  if(currentScreen === 'inicio') renderHome();
+}
+function publishWho(){
+  if(!liveNet) return;
+  const b = liveBoard();
+  netPublish(whoTopic(DEVICE), JSON.stringify({v:LIVE_VERSION, me:liveMe(), board:b ? {share:live.share, nome:b.nome} : null, rank:myRankLogs(), ts:Date.now()}), {retain:true});
+}
+function onNetMessage(topic, payload){
+  const s = payload.toString();
+  if(topic.includes('/who/')){
+    const dev = topic.split('/').pop(); if(dev === DEVICE) return;
+    let info = null; try{ info = s ? JSON.parse(s) : null; }catch(err){}
+    const before = liveFriends[dev];
+    if(!info || !info.me){ delete liveFriends[dev]; renderLive(); return; }
+    liveFriends[dev] = Object.assign(info, {seen:Date.now()});
+    if(info.me.pid === FRIEND.id && info.rank) mergeFriendRank(info.rank);
+    if(info.board && (!before || !before.board || before.board.share !== info.board.share) && Date.now() - info.ts < 180000 && !(live && live.share === info.board.share))
+      toast(`${info.me.avatar} ${info.me.nome} abriu o quadro "${info.board.nome}" ao vivo. Vá em Quadro branco e toque em Entrar.`);
+    renderLive();
+    return;
+  }
+  if(!s) return;
+  let d; try{ d = JSON.parse(s); }catch(err){ return; }
+  if(!d || !d.mid || liveNet.seen.has(d.mid)) return;
+  liveNet.seen.set(d.mid, Date.now());
+  if(liveNet.seen.size > 4000){ const cut = Date.now() - 120000; liveNet.seen.forEach((t, k) => { if(t < cut) liveNet.seen.delete(k); }); }
+  if(d.src === liveNet.src || !live || d.share !== live.share) return;
+  if(d.v !== LIVE_VERSION){ if(!live.warned){ live.warned = true; toast('O app do seu amigo está numa versão diferente do teste. Usem o mesmo arquivo nos dois computadores.'); } return; }
+  onLiveData(d);
+}
+function pruneFriends(){
+  const cut = Date.now() - 180000;
+  Object.keys(liveFriends).forEach(k => { if((liveFriends[k].ts || 0) < cut && (liveFriends[k].seen || 0) < cut) delete liveFriends[k]; });
+  renderLive();
+}
+function livePublish(msg){
+  if(!live || !liveNet) return 0;
+  Object.assign(msg, {v:LIVE_VERSION, mid:wbId(), src:liveNet.src, share:live.share, me:liveMe()});
+  return netPublish(boardTopic(live.share), JSON.stringify(msg), {qos:msg.type === 'progress' ? 0 : 1});
+}
+function liveSendOp(b, op){
+  if(!live || live.boardId !== b.id) return;
+  const ids = (op.del || []).map(it => it.id || it);
+  if(ids.length) livePublish({type:'remove', ids});
+  (op.add || []).forEach(item => livePublish({type:'add', item}));
+}
+let wbProgAt = 0;
+function liveProgress(){   // o amigo vê o traço enquanto você desenha
+  if(!live || live.boardId !== wbBoard.id || !wb.cur || Date.now() - wbProgAt < 80) return;
+  wbProgAt = Date.now(); livePublish({type:'progress', item:wb.cur});
+}
+
+// entrar, compartilhar e sair
+async function beginLive(share, boardId, role){
+  if(!await netStart()){ toast('Não deu para carregar a conexão ao vivo. Confira a internet.'); return false; }
+  if(live) stopLive(true);
+  live = {share, boardId, role, partners:{}, gotState:false};
+  BOARDS.forEach(x => { x.live = x.id === boardId; }); saveBoards();   // só um quadro fica ao vivo por vez
+  netSubscribe(boardTopic(share));
+  publishWho();
+  setTimeout(() => live && live.share === share && livePublish({type:'hello'}), 600);
+  renderLive(); renderWbBoards();
+  return true;
+}
+function liveShareId(){ const a = 'ABCDFGHJKLMNPQRSTUVWXYZ23456789'; return Array.from({length:6}, () => a[Math.floor(Math.random() * a.length)]).join(''); }
+async function startShare(){
+  if(live && live.boardId === wbBoard.id) return openShareModal();
+  if(live && !confirm('Você já está num quadro ao vivo. Sair dele e compartilhar este?')) return;
+  if(!wbBoard.share){ wbBoard.share = liveShareId(); saveBoards(); }
+  const btn = document.getElementById('wb-share'); btn.disabled = true; btn.querySelector('span').textContent = 'Conectando...';
+  const ok = await beginLive(wbBoard.share, wbBoard.id, 'host');
+  btn.disabled = false; renderLive();
+  if(!ok) return;
+  setTimeout(() => { if(live && !liveOnline()) toast('Ainda não consegui falar com nenhum servidor. Use "Testar servidores".'); }, 9000);
+  openShareModal();
+}
+async function joinLive(raw, nome, who){
+  const share = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if(share.length < 5) return toast('Esse código parece incompleto.');
+  if(currentScreen !== 'quadro') show('quadro');
+  let b = BOARDS.find(x => x.share === share);
+  if(!b){ b = {id:wbId(), nome:(nome ? (who ? `${String(nome).slice(0, 40)} (com ${String(who).slice(0, 15)})` : String(nome).slice(0, 60)) : `Quadro ao vivo ${share}`), items:[], tomb:[], share, guest:true, at:Date.now()}; BOARDS.push(b); saveBoards(); }
+  wbOpen(b.id);
+  if(live && live.share === share) return;
+  if(!await beginLive(share, b.id, 'guest')) return;
+  toast('Entrando no quadro...');
+  const l = live;
+  setTimeout(() => { if(live === l && !live.gotState && !Object.keys(live.partners).length) toast(`Ninguém respondeu nesse quadro ainda. Confira se o ${FRIEND.nome} está com ele aberto. Pode desenhar: quando ele chegar, junta tudo.`); }, 15000);
+}
+function stopLive(silent){
+  if(!live) return;
+  const l = live;
+  try{ livePublish({type:'bye'}); }catch(err){}
+  live = null; wb.remote = {};
+  netUnsubscribe(boardTopic(l.share));
+  publishWho();
+  if(!silent) toast('Você saiu do quadro ao vivo. O desenho continua salvo.');
+  renderLive(); renderWbBoards(); wbRender();
+}
+
+// sincronizar: quando alguém chega (ou a internet volta), cada um manda o quadro que tem e os dois juntam
+function sendBoardState(to){
+  const b = liveBoard(); if(!b) return;
+  const parts = []; let cur = [], size = 0;
+  b.items.forEach(it => { const n = JSON.stringify(it).length; if(size + n > LIVE_CHUNK && cur.length){ parts.push(cur); cur = []; size = 0; } cur.push(it); size += n; });
+  parts.push(cur);
+  const sid = wbId();
+  parts.forEach((items, i) => livePublish({type:'state', to, sid, part:i, parts:parts.length, board:Object.assign({items}, i === 0 ? {nome:b.nome, tomb:b.tomb.slice(-3000)} : {})}));
+}
+function mergeBoardState(d){
+  live.parts = live.parts || {};
+  const sp = live.parts[d.sid] = live.parts[d.sid] || {got:{}, n:d.parts};
+  sp.got[d.part] = d.board || {};
+  if(Object.keys(sp.got).length < sp.n) return;
+  delete live.parts[d.sid];
+  const pieces = Object.keys(sp.got).sort((a, c) => a - c).map(k => sp.got[k]);
+  const meta = pieces[0], incoming = [].concat(...pieces.map(p => p.items || [])).filter(okItem);
+  const b = liveBoard(); if(!b) return;
+  const tomb = new Set(b.tomb.concat((meta.tomb || []).filter(x => typeof x === 'string')));
+  const map = new Map();
+  b.items.concat(incoming).forEach(it => { if(!tomb.has(it.id)) map.set(it.id, it); });
+  b.tomb = [...tomb].slice(-3000);
+  b.items = [...map.values()].sort((x, y) => (x.ts || 0) - (y.ts || 0));
+  if(b === wbBoard) wb.items = b.items;
+  if(live.role === 'guest' && !live.gotState && meta.nome && /^Quadro ao vivo /.test(b.nome)) b.nome = `${String(meta.nome).slice(0, 40)} (com ${d.me.nome})`;
+  const first = !live.gotState; live.gotState = true;
+  b.at = Date.now(); saveBoards(); renderWbBoards();
+  if(b === wbBoard) wbRender();
+  if(first && live.role === 'guest') toast(`Conectado ao quadro do ${d.me.nome}! Tudo que um desenha o outro vê. 🎨`);
+  renderLive();
+}
+function onLiveData(d){
+  if(d.me && d.src) live.partners[d.src] = {nome:String(d.me.nome || 'Amigo').slice(0, 30), avatar:String(d.me.avatar || '🙂').slice(0, 4), seen:Date.now()};
+  const b = liveBoard(), here = b && b === wbBoard;
+  switch(d.type){
+    case 'hello':
+      if(!d.resync) toast(`${d.me.avatar} ${d.me.nome} entrou no quadro!`);
+      sendBoardState(d.src);
+      if(!d.reply) livePublish({type:'hello', reply:true, resync:true});    // pede o quadro dele também
+      renderLive(); break;
+    case 'state': if(!d.to || d.to === liveNet.src) mergeBoardState(d); break;
+    case 'add': if(b && okItem(d.item)){ delete wb.remote[d.item.id]; wbApplyTo(b, {add:[d.item]}); if(here) wbRender(); } break;
+    case 'remove': if(b && Array.isArray(d.ids)){ wbApplyTo(b, {del:d.ids.filter(x => typeof x === 'string')}); if(here) wbRender(); } break;
+    case 'meta': if(b && d.nome){ b.nome = String(d.nome).slice(0, 60); saveBoards(); renderWbBoards(); } break;
+    case 'progress': if(here && okItem(d.item)){ wb.remote[d.item.id] = {item:d.item, at:Date.now()}; wbRender(); } break;
+    case 'bye': delete live.partners[d.src]; if(d.me) toast(`${d.me.avatar} ${d.me.nome} saiu do quadro.`); renderLive(); break;
+  }
+}
+
+// painel "Estudar junto" em cima do quadro
+function renderLive(){
+  const box = document.getElementById('wb-live'); if(!box) return;
+  const here = live && live.boardId === wbBoard.id, online = liveOnline();
+  const share = document.getElementById('wb-share');
+  if(!share.disabled) share.querySelector('span').textContent = here ? 'Ao vivo' : 'Estudar junto';
+  share.classList.toggle('ring-2', !!here); share.classList.toggle('ring-[#5FBF4A]', !!here);
+  const state = online ? `conectado (${online} de ${LIVE_BROKERS.length} servidores)` : liveNet ? 'conectando...' : 'desligado';
+  const dot = online ? 'bg-[#5FBF4A]' : liveNet ? 'bg-amber' : 'bg-[#C9C2B2]';
+  const link = 'font-semibold text-forest-700 hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded';
+  const friends = Object.values(liveFriends).filter(f => Date.now() - (f.ts || 0) < 180000);
+  const friendRow = f => `<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px]">
+        <span><b>${esc(f.me.avatar || '🙂')} ${esc(f.me.nome || 'Amigo')}</b> está online${f.me.pid === ME.id ? ' em outro aparelho' : ''}</span>
+        ${f.v !== LIVE_VERSION ? '<span class="text-muted">com outra versão do teste</span>'
+          : f.board ? `<span class="text-ink-2">no quadro <b>${esc(f.board.nome)}</b></span>${live && live.share === f.board.share ? '<span class="text-forest-700 font-semibold">estudando junto com você</span>' : `<button type="button" data-live-join="${esc(f.board.share)}" data-title="${esc(f.board.nome)}" data-who="${esc(f.me.nome || '')}" class="rounded-lg bg-forest-700 hover:bg-forest-900 text-[#F3F1E6] px-3 py-1 text-[13.5px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-amber">Entrar</button>`}`
+          : '<span class="text-muted">ainda sem quadro ao vivo</span>'}
+      </div>`;
+  let body;
+  if(here){
+    const people = Object.values(live.partners).filter(p => Date.now() - p.seen < 90000);
+    body = `<div class="flex flex-wrap items-center gap-2 text-[14px]">
+        <span class="rounded-full bg-forest-100 text-forest-700 px-3 py-1 font-semibold">${PROFILE_AVATAR[ME.id]} ${ME.nome} (você)</span>
+        ${people.length ? people.map(p => `<span class="rounded-full bg-[#F8E7CF] text-ink px-3 py-1 font-semibold">${esc(p.avatar)} ${esc(p.nome)}</span>`).join('')
+          : `<span class="text-ink-2">Esperando o ${FRIEND.nome} entrar. Código do quadro: <b class="tracking-[.12em] text-ink">${live.share}</b></span>`}
+      </div>`;
+    // se o amigo abriu outro quadro ao vivo, aparece aqui também
+    body += friends.filter(f => f.v === LIVE_VERSION && f.board && f.board.share !== live.share).map(friendRow).join('');
+  } else {
+    body = friends.length ? friends.map(friendRow).join('')
+      : `<p class="text-[14px] text-ink-2">Quando o ${FRIEND.nome} abrir o app, ele aparece aqui. Se ele tocar em <b>Estudar junto</b> num quadro, aparece o botão <b>Entrar</b>. Não precisa de código.</p>`;
+    if(live) body += `<button type="button" data-live="back" class="text-[14px] ${link}">Voltar ao quadro ao vivo</button>`;
+  }
+  const html = `<div class="flex flex-wrap items-center gap-x-2 gap-y-1"><span class="w-2.5 h-2.5 rounded-full ${dot}" aria-hidden="true"></span><b class="text-[15px]">Estudar junto</b><span class="text-[13px] text-muted">${state}</span></div>
+    <div class="mt-2 space-y-2">${body}</div>
+    <div class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[13.5px]">
+      ${here ? `<button type="button" data-live="leave" class="font-semibold text-[#B4472F] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Sair do ao vivo</button>` : ''}
+      <button type="button" data-live="test" class="${link}">Testar servidores</button>
+      ${here ? '' : `<button type="button" data-live="code" class="${link}">Entrar com código</button>`}
+    </div>`;
+  if(box._html === html) return;     // só redesenha se mudou (senão um clique em "Entrar" pode se perder)
+  box._html = html; box.innerHTML = html;
+}
+document.getElementById('wb-live').addEventListener('click', e => {
+  const j = e.target.closest('[data-live-join]'); if(j) return joinLive(j.dataset.liveJoin, j.dataset.title, j.dataset.who);
+  const a = e.target.closest('[data-live]'); if(!a) return;
+  if(a.dataset.live === 'test') openServerTest();
+  if(a.dataset.live === 'code') openJoinCode();
+  if(a.dataset.live === 'back' && live) wbOpen(live.boardId);
+  if(a.dataset.live === 'leave' && confirm('Sair do quadro ao vivo? O que foi desenhado continua salvo.')){
+    const b = liveBoard(); if(b){ b.live = false; saveBoards(); }   // não entra sozinho de novo até tocar em "Estudar junto"
+    stopLive();
+  }
+});
+document.getElementById('wb-share').addEventListener('click', startShare);
+function openShareModal(){
+  if(!live) return;
+  openModal(`${modalHead('Estudar junto')}
+    <p class="mt-3 text-[15px] text-ink-2">Pronto! O quadro <b>${esc(wbBoard.nome)}</b> está aberto para a dupla. O ${FRIEND.nome} vai ver ele em <b>Quadro branco</b> com um botão <b>Entrar</b>.</p>
+    <p class="mt-4 text-[14px] text-ink-2">Se não aparecer para ele, dá para entrar com este código:</p>
+    <div class="mt-2 flex flex-wrap items-center gap-3"><span class="rounded-xl bg-cream border border-line px-5 py-2 text-[26px] font-extrabold tracking-[.2em]">${live.share}</span><button type="button" id="sh-copy" class="${btnSoft} !py-2 !text-[14px]">Copiar código</button></div>
+    <p class="mt-4 text-[13px] text-muted">Os dois precisam estar com esta versão de teste aberta e com internet. Se a conexão cair, ela volta sozinha.</p>
+    <div class="mt-5 flex justify-end"><button type="button" data-close class="${btnPrimary}">Ok</button></div>`);
+  document.getElementById('sh-copy').addEventListener('click', () => navigator.clipboard.writeText(live ? live.share : '').then(() => toast('Código copiado.'), () => toast('Não deu para copiar.')));
+}
+function openJoinCode(){
+  openModal(`${modalHead('Entrar com código')}
+    <p class="mt-2 text-[14.5px] text-ink-2">Normalmente nem precisa: o quadro do ${FRIEND.nome} aparece sozinho com o botão Entrar. Use o código só se ele não aparecer.</p>
+    <form id="jc-form" class="mt-4 flex gap-2"><input id="jc-code" class="${fieldCls} uppercase tracking-[.15em] font-bold" maxlength="10" placeholder="Ex.: K7Q2ZH" autocomplete="off" aria-label="Código do quadro"><button class="${btnPrimary}">Entrar</button></form>`);
+  document.getElementById('jc-form').addEventListener('submit', e => { e.preventDefault(); const v = document.getElementById('jc-code').value; closeModal(); joinLive(v); });
+}
+
+// Testar servidores: abre uma conexão nova com cada um e manda uma mensagem de ida e volta
+function testBroker(br){
+  return new Promise(resolve => {
+    const t0 = performance.now(), topic = `${LIVE_NS}/teste/${wbId()}`;
+    let c = null, done = false, tc = 0;
+    const end = r => { if(done) return; done = true; clearTimeout(timer); try{ if(c) c.end(true); }catch(err){} resolve(r); };
+    const timer = setTimeout(() => end({ok:false, why:tc ? 'conectou, mas a mensagem não voltou' : 'não respondeu em 10 s'}), 10000);
+    try{ c = mqtt.connect(br.url, {clientId:'zent_t_' + wbId(), clean:true, connectTimeout:9000, reconnectPeriod:0}); }
+    catch(err){ return end({ok:false, why:'não abriu a conexão'}); }
+    c.on('connect', () => {
+      tc = Math.round(performance.now() - t0);
+      c.subscribe(topic, {qos:0}, err => {
+        if(err) return end({ok:false, why:'conectou, mas recusou a inscrição'});
+        const t1 = performance.now();
+        c.on('message', () => end({ok:true, ms:tc, echo:Math.round(performance.now() - t1)}));
+        c.publish(topic, 'ping');
+      });
+    });
+    c.on('error', () => end({ok:false, why:'recusou a conexão'}));
+  });
+}
+function openServerTest(){
+  const row = (br, k) => `<li class="flex items-center gap-3 rounded-xl border border-line bg-cream px-4 py-3">
+      <span id="st-ic-${k}" class="w-6 h-6 grid place-items-center text-muted shrink-0"></span>
+      <span class="flex-1 min-w-0"><b class="text-[15px]">${br.name}</b><span class="block text-[12.5px] text-muted truncate">${br.url.replace('wss://', '')}</span></span>
+      <span id="st-res-${k}" class="text-[13.5px] text-ink-2 text-right"></span></li>`;
+  openModal(`${modalHead('Testar servidores')}
+    <p class="mt-2 text-[14.5px] text-ink-2">O quadro ao vivo usa 3 servidores ao mesmo tempo, como no app original. Basta um funcionar.</p>
+    <ul class="mt-4 space-y-2">${LIVE_BROKERS.map(row).join('')}</ul>
+    <p id="st-sum" class="mt-4 text-[14.5px] min-h-[1.4em]" aria-live="polite"></p>
+    <p class="mt-1 text-[12.5px] text-muted">Sala da dupla ${SALA_DA_DUPLA.slice(0, 4)}..., canal só desta versão de teste.</p>
+    <div class="mt-5 flex justify-end gap-2"><button type="button" id="st-again" class="${btnSoft}">Testar de novo</button><button type="button" data-close class="${btnPrimary}">Fechar</button></div>`);
+  document.getElementById('st-again').addEventListener('click', runServerTest);
+  runServerTest();
+}
+async function runServerTest(){
+  const run = runServerTest.n = (runServerTest.n || 0) + 1, again = document.getElementById('st-again'), sum = document.getElementById('st-sum');
+  if(!sum) return;
+  again.disabled = true; sum.textContent = ''; sum.className = 'mt-4 text-[14.5px] min-h-[1.4em]';
+  LIVE_BROKERS.forEach((br, k) => { document.getElementById(`st-ic-${k}`).innerHTML = spinner; document.getElementById(`st-res-${k}`).textContent = 'testando...'; });
+  try{ await loadMqtt(); }
+  catch(err){ sum.textContent = 'Não deu para carregar a biblioteca da conexão. Confira a internet.'; sum.classList.add('text-[#B4472F]'); again.disabled = false; return; }
+  const ok = '<svg class="w-5 h-5 text-forest-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-label="Funcionou"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+  const bad = '<svg class="w-5 h-5 text-[#B4472F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-label="Falhou"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+  const results = await Promise.all(LIVE_BROKERS.map((br, k) => testBroker(br).then(r => {
+    const ic = document.getElementById(`st-ic-${k}`), res = document.getElementById(`st-res-${k}`);
+    if(run === runServerTest.n && ic){ ic.innerHTML = r.ok ? ok : bad; res.innerHTML = r.ok ? `conectou em ${r.ms} ms<br><span class="text-muted">mensagem voltou em ${r.echo} ms</span>` : esc(r.why); }
+    return r;
+  })));
+  if(run !== runServerTest.n || !document.getElementById('st-sum')) return;
+  const n = results.filter(r => r.ok).length;
+  await netStart();
+  const friends = Object.values(liveFriends).filter(f => Date.now() - (f.ts || 0) < 180000);
+  const who = friends.length ? `Vendo online agora: ${friends.map(f => esc(f.me.nome)).join(', ')}.` : `O ${FRIEND.nome} ainda não apareceu online. Ele precisa estar com esta versão de teste aberta.`;
+  sum.innerHTML = n === LIVE_BROKERS.length ? `<b class="text-forest-700">Tudo certo: os ${n} servidores responderam.</b> ${who}`
+    : n ? `<b class="text-forest-700">${n} de ${LIVE_BROKERS.length} funcionando. Já dá para estudar junto.</b> ${who}`
+    : '<b class="text-[#B4472F]">Nenhum servidor respondeu.</b> Pode ser bloqueio da rede (escola, Wi-Fi público) ou antivírus. Tente outra internet, como o 4G do celular.';
+  again.disabled = false;
+}
+
+setInterval(() => { if(live) renderLive(); }, 30000);
+window.addEventListener('beforeunload', () => { if(live) livePublish({type:'bye'}); if(liveNet) netPublish(whoTopic(DEVICE), '', {retain:true}); });
+renderWbBoards(); renderLive();
+// a conexão liga sozinha (como no original) e volta para o quadro que estava ao vivo
+if(USER) setTimeout(() => netStart().then(n => {
+  const b = n && !live && BOARDS.find(x => x.live && x.share);
+  if(b) beginLive(b.share, b.id, b.guest ? 'guest' : 'host');
+}), 1500);
 
 // ---------- Arquivos ----------
 // Os arquivos ficam no IndexedDB deste navegador (aguenta PDFs e fotos grandes), um banco por perfil
@@ -4215,7 +4696,7 @@ function renderHome(){
           <th class="py-1 text-right font-semibold">${op.xp > meR.xp ? '👑 ' : ''}${PROFILE_AVATAR[FRIEND.id]} ${FRIEND.nome}</th></tr></thead>
         <tbody>${rankRow('XP', meR.xp, op.xp)}${rankRow('Minutos', meR.min, op.min)}${rankRow('Acertos', meR.ok, op.ok)}${rankRow('Dias', meR.days, op.days)}</tbody>
       </table>
-      <p class="mt-2 text-[12.5px] text-muted">${fs ? 'Quem fizer mais XP até sábado ganha +50 XP.' : `O ${FRIEND.nome} ainda não estudou neste aparelho. O ranking compara os dois perfis daqui.`}</p>
+      <p class="mt-2 text-[12.5px] text-muted">${fs ? 'Quem fizer mais XP até sábado ganha +50 XP.' : `O ${FRIEND.nome} ainda não apareceu. O ranking junta o perfil dele deste aparelho e o que chega pela conexão ao vivo.`}</p>
     </div>
   </div>
 
@@ -4364,7 +4845,7 @@ document.addEventListener('click', e => { if(e.target.closest('[data-global-sear
 // cada tela é redesenhada ao abrir, com os dados atualizados
 const SCREEN_REFRESH = {inicio:() => renderHome(), progresso:() => renderProgress(), conquistas:() => renderBadges(), questoes:() => renderQuestions(),
   simulados:() => renderSim(), flashcards:() => { if(!fcs.queue.length) buildQueue(false); renderFC(); }, calendario:() => renderCal(), boletim:() => renderBoletim(),
-  resumos:() => renderSubjects(), mapas:() => renderMap(), videos:() => renderVideos()};
+  resumos:() => renderSubjects(), mapas:() => renderMap(), videos:() => renderVideos(), quadro:() => { renderWbBoards(); renderLive(); }};
 
 // ---------- troca de tela ----------
 function show(id){
