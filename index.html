@@ -306,7 +306,16 @@
             <div class="topbar-tools"></div>
           </header>
 
-          <div id="hw-card" class="mt-6"></div>
+          <button type="button" data-tool="dever" class="w-full text-left mt-6 group flex items-center gap-5 rounded-2xl bg-paper border border-line shadow-card px-6 py-5 hover:border-[#EBCF97] focus:outline-none focus-visible:ring-2 focus-visible:ring-tangerine">
+            <span class="w-14 h-14 rounded-full bg-honey grid place-items-center shrink-0">
+              <svg class="w-7 h-7 text-ember" viewBox="0 0 24 24" fill="#F4BC4E" fill-opacity=".85" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2" fill="#FBEBC6"/></svg>
+            </span>
+            <span class="flex-1">
+              <span class="block font-bold text-[17px]">Dever de casa</span>
+              <span class="block text-muted text-[14px] mt-0.5">Foto da questão, resposta e passo a passo</span>
+            </span>
+            <svg class="w-6 h-6 text-ink-2 group-hover:translate-x-0.5 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
 
           <div id="tools" class="mt-4 grid sm:grid-cols-2 gap-4"></div>
 
@@ -2079,6 +2088,45 @@ function capyAccHTML(look = CAPY_LOOK, level = levelInfo(STATS.totalXP).level){
   }).join('');
 }
 const CAPY_GRASS = '<ellipse cx="80" cy="134" rx="66" ry="6" fill="#B9CD95" opacity=".6"/><path d="M10 136c1-9 4-14 8-16-1 5-2 10-1 16M20 136c2-11 6-17 11-20-3 7-4 13-4 20M140 136c0-10 3-17 8-21-2 7-3 14-2 21M150 136c2-8 6-12 10-14-3 5-5 9-5 14" fill="#7FA35A"/>';
+// a capivara sentada de lado na grama, do primeiro protótipo (usada na Revisão do dia).
+// Com o pelo "Clássica" ficam as cores originais; nos outros pelos, os tons acompanham a cor escolhida.
+// Os acessórios são os mesmos da capivara de frente, redesenhados de perfil.
+const shade = (hex, k) => '#' + [1, 3, 5].map(i => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k))).toString(16).padStart(2, '0')).join('');
+const CAPY_SIDE_VB = '0 -10 160 150';
+const CAPY_SIDE = {
+  flor:'<g transform="translate(97 13) scale(.8)"><circle r="5" cx="0" cy="-6" fill="#F4A6B8"/><circle r="5" cx="6" cy="0" fill="#F4A6B8"/><circle r="5" cx="0" cy="6" fill="#F4A6B8"/><circle r="5" cx="-6" cy="0" fill="#F4A6B8"/><circle r="3.5" fill="#F2C94C"/></g>',
+  lapis:'<g transform="rotate(-18 96 14)"><rect x="82" y="11" width="28" height="6" rx="1.5" fill="#F2C94C"/><rect x="108" y="11" width="5" height="6" fill="#E89BA6"/><path d="M82 11 L75 14 L82 17Z" fill="#E8C9A0"/><path d="M77 13.2 L75 14 L77 14.8Z" fill="#333"/></g>',
+  oculos:'<g fill="none" stroke="#2A1C10" stroke-width="2.3"><ellipse cx="70" cy="36" rx="7.5" ry="7.5"/><path d="M77.5 34 L88 27"/><path d="M62.5 37.5 L57 39"/></g>',
+  fone:'<path d="M58 30 Q66 4 92 15" stroke="#3B3B4A" stroke-width="5" fill="none" stroke-linecap="round"/><rect x="82" y="12" width="16" height="22" rx="7.5" fill="#C1564A"/><rect x="85" y="16" width="5" height="14" rx="2.5" fill="#D9776B"/>',
+  cachecol:'<path d="M64 58 Q84 69 104 58 L106 70 Q84 82 62 70Z" fill="#C1564A"/><path d="M68 68 L62 96 L72 97 L77 71Z" fill="#A8443A"/><path d="M74 63 L75 72 M86 65 L86 74 M98 62 L97 71" stroke="#E07A6E" stroke-width="2"/>',
+  formatura:'<path d="M57 22 L57 12 Q75 17 93 12 L93 22 Q75 27 57 22Z" fill="#1F2430"/><polygon points="44,11 76,4 108,11 74,18" fill="#2B3140"/><circle cx="76" cy="11" r="2.2" fill="#E8A33D"/><path d="M76 11 L104 13 L104 27" stroke="#E8A33D" stroke-width="2" fill="none"/><circle cx="104" cy="29" r="3" fill="#E8A33D"/>',
+  mochila:'<rect x="106" y="64" width="23" height="38" rx="8" fill="#2F5F8A"/><rect x="109" y="81" width="17" height="13" rx="3" fill="#3F78AD"/><path d="M108 69 Q97 64 89 70" stroke="#244A6B" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M108 97 Q99 98 93 103" stroke="#244A6B" stroke-width="4" fill="none" stroke-linecap="round"/>',
+  escuros:'<path d="M61 30 H80 V37 Q80 44 70.5 44 Q61 44 61 37Z" fill="#1E1E24"/><path d="M80 32 L89 27" stroke="#1E1E24" stroke-width="2.8" stroke-linecap="round"/><path d="M64 33 L70 33" stroke="#fff" stroke-width="1.8" opacity=".5"/>',
+  laranja:'<circle cx="75" cy="10" r="11" fill="#F29A2E"/><circle cx="70" cy="6" r="3" fill="#F7B860" opacity=".85"/><path d="M75 -1 q7 -7 14 -2 q-7 5 -14 2z" fill="#4E9A4A"/>',
+  coroa:'<path d="M57 22 L59 5 L67 14 L75 0 L83 14 L91 5 L93 22Z" fill="#E8B73D" stroke="#B98A1F" stroke-width="1.5"/><circle cx="75" cy="16" r="2.6" fill="#C1564A"/><circle cx="63" cy="18" r="1.8" fill="#3F8F5F"/><circle cx="87" cy="18" r="1.8" fill="#3F8F5F"/>'
+};
+function capyClassic(look = CAPY_LOOK, level = levelInfo(STATS.totalXP).level){
+  const f = CAPY_FUR[look.pelo] || CAPY_FUR.classica, orig = !CAPY_FUR[look.pelo] || look.pelo === 'classica';
+  const c = orig ? {torso:'#A8763F', head:'#B07D45', snout:'#9A6936', leg1:'#8E6233', leg2:'#93653A', ear:'#8B5F31', inner:'#6E4A25'}
+    : {torso:f.body, head:f.head, snout:shade(f.body, .9), leg1:shade(f.body, .82), leg2:shade(f.body, .86), ear:f.ear, inner:shade(f.ear, .8)};
+  // acessórios só aparecem se o nível já liberou, como na capivara de frente
+  const acc = slot => { const a = CAPY_ACC.find(x => x.id === look[slot]); return a && a.level <= level ? CAPY_SIDE[a.id] || '' : ''; };
+  return `<ellipse cx="88" cy="131" rx="62" ry="6" fill="#B9CD95" opacity=".55"/>
+    <path d="M30 131c2-12 6-20 12-25-2 9-3 17-2 25M40 131c4-14 10-22 18-27-5 9-7 18-7 27M128 131c-1-14 3-26 12-34-3 11-4 22-3 34M137 131c4-10 10-16 17-19-5 7-8 13-9 19" fill="#7FA35A"/>
+    <path d="M24 131c3-8 7-12 12-14-3 5-4 9-4 14M146 131c1-9 4-15 9-18-2 6-3 12-3 18" fill="#5E8A45"/>
+    <path d="M70 58c-14 10-19 34-15 62 1 7 4 11 9 11h44c8 0 12-6 12-15 0-26-10-50-26-60-8-5-17-4-24 2z" fill="${c.torso}"/>
+    <ellipse cx="104" cy="112" rx="18" ry="19" fill="${c.snout}"/>
+    <rect x="66" y="98" width="13" height="33" rx="6.5" fill="${c.leg1}"/>
+    <rect x="86" y="104" width="12" height="27" rx="6" fill="${c.leg2}"/>
+    ${acc('costas')}${acc('pescoco')}
+    <rect x="50" y="20" width="50" height="44" rx="20" fill="${c.head}"/>
+    <rect x="43" y="34" width="30" height="32" rx="13" fill="${c.snout}"/>
+    <ellipse cx="50" cy="45" rx="2.4" ry="1.7" fill="#3E2A18"/>
+    <path d="M47 56c3 2 7 2 10 0" stroke="#5A3D20" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <circle cx="72" cy="35" r="3" fill="#24180D"/><circle cx="73" cy="34" r="1" fill="#fff" opacity=".8"/>
+    <ellipse cx="90" cy="21" rx="7" ry="6" fill="${c.ear}"/><ellipse cx="90" cy="22" rx="3.5" ry="3" fill="${c.inner}"/>
+    ${acc('rosto')}${acc('orelha')}${acc('cabeca')}`;
+}
 function buildCapySprite(){
   const base = capyBase(), acc = capyAccHTML();
   document.getElementById('capy-sprite').innerHTML = `
@@ -2086,7 +2134,8 @@ function buildCapySprite(){
     <symbol id="zen-head" viewBox="${CAPY_VB}">${base}${CAPY_EYES.icon}${acc}</symbol>
     <symbol id="capy-happy" viewBox="${CAPY_VB}">${base}${CAPY_EYES.happy}${acc}</symbol>
     <symbol id="capy-sit" viewBox="-6 -18 172 162">${CAPY_GRASS}${base}${CAPY_EYES.happy}${acc}</symbol>
-    <symbol id="capy-sleep" viewBox="${CAPY_VB}">${base}${CAPY_EYES.sleep}${acc}</symbol>`;
+    <symbol id="capy-sleep" viewBox="${CAPY_VB}">${base}${CAPY_EYES.sleep}${acc}</symbol>
+    <symbol id="capy-classic" viewBox="${CAPY_SIDE_VB}">${capyClassic()}</symbol>`;
 }
 buildCapySprite();
 // avatar do estudante (o mesmo emoji do app original: 🦫 Lucca, 🦊 Antonio)
@@ -2176,6 +2225,7 @@ Formato: {"plano":"o plano em markdown (uma tabela | Dia | O que fazer |) e 3 di
 function openTool(id){
   if(id === 'questoes') return openQuestionGenerator(qs => { location.hash = 'questoes'; document.getElementById('q-subject').value = qs[0].k; renderQuestions(); });
   if(id === 'tutor') return openTutor();
+  if(id === 'dever') return openHwStart();
   const T = TOOL_FORMS[id];
   const field = ([key, label, type, extra]) => {
     const base = `id="tf-${key}" ${type === 'date' ? 'required' : ''}`;
@@ -5125,65 +5175,49 @@ const hwGlyph = (k, cls) => k === 'mat' ? `<span class="${cls} grid place-items-
   : k === 'auto' ? `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>`
   : glyph(k, cls);
 
-// ---- cartão na tela Ferramentas ----
-function renderHwCard(){
-  const el = document.getElementById('hw-card'); if(!el) return;
-  const recent = HW.slice(0, 3);
-  el.innerHTML = `<div class="rounded-2xl bg-forest-700 text-[#F3F1E6] shadow-card p-5 sm:p-6">
-    <div class="flex items-center gap-5">
-      <span class="hw-finder relative w-[72px] h-[72px] shrink-0 grid place-items-center text-[34px] font-extrabold text-[#F4BC4E]" aria-hidden="true">
-        <i class="hw-c tl"></i><i class="hw-c tr"></i><i class="hw-c bl"></i><i class="hw-c br"></i>Σ
-      </span>
-      <div class="min-w-0">
-        <h2 class="text-[22px] font-extrabold tracking-tight leading-tight">Dever de casa</h2>
-        <p class="mt-1 text-[15px] text-[#D5E2CC] leading-snug">Tire foto da questão e o Zen mostra a resposta e o passo a passo, em qualquer matéria.</p>
-      </div>
-    </div>
-    <div class="mt-5 flex flex-wrap gap-2">
-      <button type="button" data-hw-open="cam" class="inline-flex items-center gap-2 rounded-xl bg-[#F4BC4E] hover:bg-[#F7CB6E] text-[#2B2412] font-bold text-[15px] px-5 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-forest-700">${CAMERA_ICO}Tirar foto</button>
-      <button type="button" data-hw-open="file" class="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[15px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">${hwIco('gallery', 'w-[18px] h-[18px]')}Escolher do aparelho</button>
-      <button type="button" data-hw-open="type" class="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[15px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">${hwIco('type', 'w-[18px] h-[18px]')}Digitar a questão</button>
-    </div>
-    ${recent.length ? `<div class="mt-5 pt-4 border-t border-white/15">
-      <div class="flex items-center justify-between gap-3"><h3 class="text-[14px] font-bold text-[#D5E2CC]">Últimos deveres</h3>
-        ${HW.length > 3 ? `<button type="button" data-hw-open="hist" class="text-[13.5px] font-semibold text-[#F4BC4E] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded">Ver todos (${HW.length})</button>` : ''}</div>
-      <ul class="mt-2 grid sm:grid-cols-3 gap-2">${recent.map(hwItemHTML).join('')}</ul>
-    </div>` : ''}
-  </div>`;
-}
+// ---- na tela Ferramentas é uma opção como as outras; ao abrir, aparecem os botões e os últimos deveres ----
 function hwItemHTML(h){
   const s = hwSubj(h.k), q = (h.data && h.data.questoes && h.data.questoes[0]) || {};
   const title = (q.conceito || q.enunciado || h.text || 'Questão').replace(/[$*#`]/g, '').slice(0, 70);
-  return `<li><button type="button" data-hw-item="${h.id}" class="w-full flex items-center gap-3 rounded-xl bg-white/[.07] hover:bg-white/[.13] p-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
-    ${h.thumb ? `<img src="${h.thumb}" alt="" class="w-12 h-12 rounded-lg object-cover bg-white shrink-0">` : `<span class="w-12 h-12 rounded-lg grid place-items-center shrink-0" style="background:${s.cor}">${hwGlyph(h.k, 'w-6 h-6 text-white')}</span>`}
-    <span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug line-clamp-2">${esc(title)}</span><span class="block text-[12.5px] text-[#BFD0B4]">${s.nome} · ${ago(h.at)}</span></span>
-  </button></li>`;
+  return `<div class="flex items-center gap-2">
+    <button type="button" data-hw-item="${h.id}" class="flex-1 min-w-0 flex items-center gap-3 rounded-xl bg-cream hover:bg-sand border border-line p-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
+      ${h.thumb ? `<img src="${h.thumb}" alt="" class="w-12 h-12 rounded-lg object-cover bg-white shrink-0">` : `<span class="w-12 h-12 rounded-lg grid place-items-center shrink-0 text-white" style="background:${s.cor}">${hwGlyph(h.k, 'w-6 h-6')}</span>`}
+      <span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug line-clamp-2">${esc(title)}</span><span class="block text-[12.5px] text-muted">${s.nome} · ${ago(h.at)}</span></span>
+    </button>
+    <button type="button" data-hw-del="${h.id}" class="w-9 h-9 shrink-0 rounded-lg grid place-items-center text-muted hover:bg-sand hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Apagar este dever">${HW_X}</button>
+  </div>`;
 }
-function openHwHistory(){
+function openHwStart(){
+  const opt = (act, ico, title, sub, main) => `<button type="button" data-hw-open="${act}" class="w-full flex items-center gap-4 rounded-2xl border px-4 py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${main ? 'bg-forest-700 border-forest-700 text-[#F3F1E6] hover:bg-forest-900' : 'bg-paper border-line hover:bg-sand'}">
+      <span class="w-11 h-11 rounded-full grid place-items-center shrink-0 ${main ? 'bg-[#F4BC4E] text-[#2B2412]' : 'bg-honey text-ember'}">${ico}</span>
+      <span class="min-w-0"><span class="block font-bold text-[16px]">${title}</span><span class="block text-[13.5px] ${main ? 'text-[#D5E2CC]' : 'text-muted'}">${sub}</span></span>
+    </button>`;
   const paint = () => {
-    document.getElementById('hwh-list').innerHTML = HW.map(h => `<div class="flex items-center gap-2">${hwItemHTML(h).replace(/^<li>|<\/li>$/g, '').replace('bg-white/[.07] hover:bg-white/[.13]', 'bg-cream hover:bg-sand border border-line').replace('text-[#BFD0B4]', 'text-muted')}
-      <button type="button" data-hw-del="${h.id}" class="w-9 h-9 shrink-0 rounded-lg grid place-items-center text-muted hover:bg-sand hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Apagar este dever">${HW_X}</button></div>`).join('')
-      || '<p class="text-[14.5px] text-muted">Nenhum dever guardado.</p>';
+    const el = document.getElementById('hws-recent'); if(!el) return;
+    el.innerHTML = HW.length ? `<h3 class="font-bold text-[15px]">Últimos deveres</h3><div class="mt-2 space-y-2 max-h-[36vh] overflow-y-auto pr-1">${HW.map(hwItemHTML).join('')}</div>` : '';
   };
-  openModal(`${modalHead('Deveres de casa')}<div id="hwh-list" class="mt-4 space-y-2 max-h-[60vh] overflow-y-auto pr-1"></div>`);
+  openModal(`${modalHead('Dever de casa')}
+    <p class="mt-1 text-[15px] text-ink-2">Mande a questão e o Zen mostra a resposta e o passo a passo, em qualquer matéria.</p>
+    <div class="mt-4 space-y-2.5">
+      ${opt('cam', CAMERA_ICO.replace('w-[18px] h-[18px]', 'w-[22px] h-[22px]'), 'Tirar foto', 'Abre a câmera, com lanterna e a escolha da matéria', true)}
+      ${opt('file', hwIco('gallery', 'w-[22px] h-[22px]'), 'Escolher do aparelho', 'Uma foto ou print que já está no aparelho')}
+      ${opt('type', hwIco('type', 'w-[22px] h-[22px]'), 'Digitar a questão', 'Escreva ou cole o enunciado')}
+    </div>
+    <div id="hws-recent" class="mt-5"></div>`);
   paint();
-  document.getElementById('modal-box').onclick = e => {
+  document.getElementById('modal-box').onclick = async e => {
     const d = e.target.closest('[data-hw-del]');
-    if(d){ const i = HW.findIndex(h => h.id === d.dataset.hwDel); if(i >= 0){ HW.splice(i, 1); saveHW(); paint(); renderHwCard(); } return; }
+    if(d){ const i = HW.findIndex(h => h.id === d.dataset.hwDel); if(i >= 0){ HW.splice(i, 1); saveHW(); paint(); } return; }
     const it = e.target.closest('[data-hw-item]');
-    if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); closeModal(); if(h) openHwSolution(hwFromSaved(h)); }
+    if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); closeModal(); if(h) openHwSolution(hwFromSaved(h)); return; }
+    const b = e.target.closest('[data-hw-open]'); if(!b) return;
+    const w = b.dataset.hwOpen;
+    if(w === 'file'){ const pick = pickImageFiles(false); closeModal(); const [f] = await pick; if(f) openHwCamera(f); return; }
+    closeModal();
+    if(w === 'cam') openHwCamera();
+    if(w === 'type') openHwTyped();
   };
 }
-document.querySelector('[data-screen="ferramentas"]').addEventListener('click', async e => {
-  const b = e.target.closest('[data-hw-open]'), it = e.target.closest('[data-hw-item]');
-  if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); if(h) openHwSolution(hwFromSaved(h)); return; }
-  if(!b) return;
-  const w = b.dataset.hwOpen;
-  if(w === 'cam') openHwCamera();
-  if(w === 'type') openHwTyped();
-  if(w === 'hist') openHwHistory();
-  if(w === 'file'){ const [f] = await pickImageFiles(false); if(f) openHwCamera(f); }
-});
 
 // ---- câmera ----
 let hwCam = null;
@@ -5503,7 +5537,7 @@ function hwRemember(e){
   const i = HW.findIndex(h => h.id === e.id);
   if(i >= 0) HW[i] = rec; else HW.unshift(rec);
   HW.length = Math.min(HW.length, 30);
-  saveHW(); renderHwCard();
+  saveHW();
 }
 function openHwSolution(entry){
   hwCur = entry;
@@ -5768,7 +5802,6 @@ function hwSheetSubmit(ev){
   ev.preventDefault();
   const i = document.getElementById('hws-input'); hwAsk(i.value.trim());
 }
-renderHwCard();
 
 // ---------- Arquivos ----------
 // Os arquivos ficam no IndexedDB deste navegador (aguenta PDFs e fotos grandes), um banco por perfil
@@ -6142,7 +6175,10 @@ function renderCapyCustom(){
   const lv = levelInfo(STATS.totalXP).level;
   document.getElementById('capy-custom').innerHTML = `<h2 class="font-bold text-[17px]">Sua capivara</h2>
     <p class="text-[13.5px] text-muted">Ela aparece no Zen, no Início e em todo o app.</p>
-    <div class="mt-3 rounded-2xl bg-cream border border-line grid place-items-center py-3"><svg class="w-[150px] h-auto aspect-[172/160]" aria-hidden="true"><use href="#capy-happy"/></svg></div>
+    <div class="mt-3 rounded-2xl bg-cream border border-line grid grid-cols-2 items-end gap-2 px-3 pt-3 pb-2">
+      <figure class="text-center"><svg class="mx-auto w-full max-w-[140px] h-auto aspect-[172/160]" aria-hidden="true"><use href="#capy-happy"/></svg><figcaption class="mt-1 text-[12px] text-muted">No app</figcaption></figure>
+      <figure class="text-center"><svg class="mx-auto w-full max-w-[140px] h-auto aspect-[160/150]" aria-hidden="true"><use href="#capy-classic"/></svg><figcaption class="mt-1 text-[12px] text-muted">No Início</figcaption></figure>
+    </div>
     <p class="mt-4 text-[13.5px] font-semibold text-ink-2">Cor do pelo</p>
     <div class="mt-2 flex flex-wrap gap-2">${Object.entries(CAPY_FUR).map(([k, f]) => `<button type="button" data-fur="${k}" aria-pressed="${CAPY_LOOK.pelo === k}" title="${f.nome}" aria-label="Pelo ${f.nome}" class="w-9 h-9 rounded-full ring-offset-2 ring-offset-paper ${CAPY_LOOK.pelo === k ? 'ring-2 ring-forest-500' : 'ring-1 ring-line'} focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" style="background:linear-gradient(135deg, ${f.head} 50%, ${f.light} 50%)"></button>`).join('')}</div>
     ${Object.entries(CAPY_SLOTS).map(([slot, nome]) => `<p class="mt-4 text-[13.5px] font-semibold text-ink-2">${nome}</p>
@@ -6332,7 +6368,7 @@ function renderHome(){
     <div class="mt-2 h-3 rounded-full bg-track overflow-hidden" role="progressbar" aria-valuenow="${lv.current}" aria-valuemin="0" aria-valuemax="${lv.need}" aria-label="XP do nível ${lv.level}"><div class="h-full rounded-full bg-forest-500" style="width:${lv.pct}%"></div></div>
   </div>
 
-  <div class="mt-6 relative overflow-hidden rounded-[22px] border border-[#EADFC4] shadow-card px-6 sm:px-8 pt-6 pb-5 grid md:grid-cols-[minmax(0,1fr)_auto] gap-5 items-end" style="background:linear-gradient(120deg,#F6EEDC 0%,#F1E6CC 100%)">
+  <div class="mt-6 relative overflow-hidden rounded-[22px] border border-[#EADFC4] shadow-card px-6 sm:px-8 pt-6 pb-5 grid lg:grid-cols-[minmax(0,1fr)_auto] gap-5 items-end" style="background:linear-gradient(120deg,#F6EEDC 0%,#F1E6CC 100%)">
     <div class="min-w-0 self-center">
       <h2 class="font-extrabold text-[22px] tracking-tight">Revisão do dia</h2>
       ${reviewed ? `<p class="mt-2 text-[16px] text-forest-700 font-semibold">Feita hoje! ✓</p><p class="text-[15px] text-ink-2">${due ? `Ainda há ${plural(due, 'cartão', 'cartões')} se quiser continuar.` : 'Volte amanhã para a próxima.'}</p>`
@@ -6343,14 +6379,14 @@ function renderHome(){
         ${wrong ? `<button type="button" data-home="wrong" class="${btnSoft}">Refazer erradas</button>` : ''}
       </div>
     </div>
-    <div class="flex flex-col sm:flex-row items-end justify-center md:justify-end gap-2">
-      <div class="relative w-full sm:w-auto sm:flex-1 md:flex-none min-w-0 sm:max-w-[260px] rounded-2xl bg-paper text-ink px-4 py-3 shadow-card sm:mb-12">
+    <div class="flex flex-col sm:flex-row items-end justify-center sm:justify-end gap-2">
+      <div class="relative w-full sm:w-auto sm:flex-1 lg:flex-none min-w-0 sm:max-w-[260px] rounded-2xl bg-paper text-ink px-4 py-3 shadow-card sm:mb-12">
         <p class="text-[12px] font-bold text-forest-500">Recado do Zen para o ${ME.nome}</p>
         <p id="home-carinho" class="mt-0.5 text-[14.5px] leading-snug">${esc(carinhoDoDia(homeMsg))}</p>
         <button type="button" data-home="carinho" class="mt-1.5 text-[12.5px] font-semibold text-forest-500 hover:underline">Outro recado</button>
         <span class="absolute right-10 -bottom-1.5 sm:-right-1.5 sm:bottom-6 w-3.5 h-3.5 rotate-45 bg-paper" aria-hidden="true"></span>
       </div>
-      <svg class="capy-float w-[120px] sm:w-[160px] h-auto aspect-[172/162] shrink-0 drop-shadow-md" aria-hidden="true"><use href="#capy-sit"/></svg>
+      <svg class="w-[150px] sm:w-[190px] h-auto aspect-[160/150] shrink-0 -mb-5 -mr-2 sm:-mr-4" aria-hidden="true"><use href="#capy-classic"/></svg>
     </div>
   </div>
 
