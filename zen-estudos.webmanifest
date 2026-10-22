@@ -3,7 +3,7 @@
   "short_name": "Zen Estudos",
   "description": "Os estudos do Lucca e do Antonio com o Zen, a capivara tutora.",
   "id": "./teste-zen-estudos.html",
-  "start_url": "./teste-zen-estudos.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
