@@ -129,6 +129,43 @@
   .ach-rays { background:repeating-conic-gradient(rgba(244,188,78,.25) 0 9deg, transparent 9deg 18deg); -webkit-mask:radial-gradient(circle, #000 0, transparent 62%); mask:radial-gradient(circle, #000 0, transparent 62%); animation: achSpin 16s linear infinite; }
   @keyframes achSpin { to { transform:rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .ach-fade, .ach-pop, .ach-badge, .ach-rays { animation:none; } }
+  /* dever de casa: câmera com moldura, recorte e a linha que "lê" a foto enquanto o Zen resolve */
+  .hw-ib { width:44px; height:44px; border-radius:9999px; display:grid; place-items:center; background:rgba(255,255,255,.1); color:#fff; }
+  .hw-ib:hover { background:rgba(255,255,255,.18); }
+  .hw-ib:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+  .hw-chips { scrollbar-width:none; }
+  .hw-chips::-webkit-scrollbar { display:none; }
+  .hw-c { position:absolute; width:22px; height:22px; border:0 solid currentColor; }
+  .hw-c.tl { left:0; top:0; border-left-width:3.5px; border-top-width:3.5px; border-top-left-radius:12px; }
+  .hw-c.tr { right:0; top:0; border-right-width:3.5px; border-top-width:3.5px; border-top-right-radius:12px; }
+  .hw-c.bl { left:0; bottom:0; border-left-width:3.5px; border-bottom-width:3.5px; border-bottom-left-radius:12px; }
+  .hw-c.br { right:0; bottom:0; border-right-width:3.5px; border-bottom-width:3.5px; border-bottom-right-radius:12px; }
+  .hw-finder .hw-c { color:#F4BC4E; }
+  .hw-frame { color:#fff; box-shadow:0 0 0 100vmax rgba(0,0,0,.38); transition:width .3s ease, height .3s ease; }
+  .hw-frame .hw-c { width:32px; height:32px; border-width:0; }
+  .hw-frame .hw-c.tl { border-left-width:4px; border-top-width:4px; border-top-left-radius:18px; }
+  .hw-frame .hw-c.tr { border-right-width:4px; border-top-width:4px; border-top-right-radius:18px; }
+  .hw-frame .hw-c.bl { border-left-width:4px; border-bottom-width:4px; border-bottom-left-radius:18px; }
+  .hw-frame .hw-c.br { border-right-width:4px; border-bottom-width:4px; border-bottom-right-radius:18px; }
+  .hw-crop { box-shadow:0 0 0 100vmax rgba(0,0,0,.6); outline:1.5px solid rgba(255,255,255,.9); cursor:move; }
+  .hw-h { position:absolute; width:34px; height:34px; color:#F4BC4E; border:0 solid currentColor; }
+  .hw-h::before { content:''; position:absolute; inset:-10px; }
+  .hw-h-nw { left:-5px; top:-5px; border-left-width:5px; border-top-width:5px; cursor:nwse-resize; }
+  .hw-h-ne { right:-5px; top:-5px; border-right-width:5px; border-top-width:5px; cursor:nesw-resize; }
+  .hw-h-sw { left:-5px; bottom:-5px; border-left-width:5px; border-bottom-width:5px; cursor:nesw-resize; }
+  .hw-h-se { right:-5px; bottom:-5px; border-right-width:5px; border-bottom-width:5px; cursor:nwse-resize; }
+  .hw-shutter { background:rgba(255,255,255,.14); box-shadow:inset 0 0 0 4px #fff; }
+  .hw-shutter > span { transition:transform .12s; }
+  .hw-shutter:active > span { transform:scale(.9); }
+  .hw-scan { overflow:hidden; }
+  .hw-scan::after { content:''; position:absolute; left:0; right:0; top:3%; height:3px; background:linear-gradient(90deg, transparent, #F4BC4E 20%, #F4BC4E 80%, transparent); box-shadow:0 0 16px 4px rgba(244,188,78,.6); animation:hwScan 1.4s ease-in-out infinite alternate; }
+  @keyframes hwScan { to { top:96%; } }
+  .hw-step { animation:hwStep .38s ease-out both; }
+  @keyframes hwStep { from { opacity:0; transform:translateY(8px); } }
+  .hw-flash { animation:hwFlash .4s ease-out forwards; }
+  @keyframes hwFlash { from { opacity:.9; } to { opacity:0; } }
+  .hw-blur { filter:blur(9px); user-select:none; pointer-events:none; }
+  @media (prefers-reduced-motion: reduce) { .hw-scan::after, .hw-step, .hw-flash { animation:none; } .hw-frame { transition:none; } }
   /* reação do duelo: o emoji sobe e some em cima do avatar */
   .du-bubble { position:absolute; top:-18px; left:22px; font-size:26px; opacity:0; pointer-events:none; }
   .du-bubble.du-right { left:auto; right:22px; }
@@ -269,7 +306,9 @@
             <div class="topbar-tools"></div>
           </header>
 
-          <div id="tools" class="mt-6 grid sm:grid-cols-2 gap-4"></div>
+          <div id="hw-card" class="mt-6"></div>
+
+          <div id="tools" class="mt-4 grid sm:grid-cols-2 gap-4"></div>
 
           <button type="button" data-tool="plano" class="w-full text-left mt-4 group flex items-center gap-5 rounded-2xl bg-paper border border-line shadow-card px-6 py-5 hover:border-forest-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
             <span class="w-14 h-14 rounded-xl bg-forest-100 grid place-items-center shrink-0">
@@ -1833,7 +1872,7 @@ function showAchievementCard(list){
     o.remove(); if(back && back.focus) back.focus();
     setTimeout(nextCelebration, 350);
   };
-  const onKey = e => { if(e.key === 'Escape') close(); };
+  const onKey = e => { if(e.key === 'Escape'){ e.preventDefault(); close(); } };
   // fecha sozinho depois de 15 s, a não ser que a pessoa esteja com o mouse ou o dedo no cartão
   const auto = setTimeout(close, 15000);
   o.firstElementChild.addEventListener('pointerenter', () => clearTimeout(auto));
@@ -1887,7 +1926,9 @@ const ACHIEVEMENTS = [
   {id:'catalogo_5', icon:'🍿', title:'Maratona de Aulas', desc:'Assistiu a 5 videoaulas', prog:() => [Object.keys(vSeen).length, 5]},
   {id:'duelo_1',   icon:'⚔️', title:'Primeiro Duelo', desc:`Fez um duelo ao vivo com o ${FRIEND.nome}`, prog:() => [(STATS.duels || {}).played || 0, 1]},
   {id:'duelo_5',   icon:'🥇', title:'Duelista', desc:'Venceu 5 duelos', prog:() => [(STATS.duels || {}).wins || 0, 5]},
-  {id:'torneio_1', icon:'🏆', title:'Campeão do Torneio', desc:'Ganhou um torneio de duelos', prog:() => [((STATS.duels || {}).series || {}).won || 0, 1]}
+  {id:'torneio_1', icon:'🏆', title:'Campeão do Torneio', desc:'Ganhou um torneio de duelos', prog:() => [((STATS.duels || {}).series || {}).won || 0, 1]},
+  {id:'dever_1',   icon:'📸', title:'Dever Resolvido', desc:'Resolveu o primeiro dever de casa com o Zen', prog:() => [STATS.homework || 0, 1]},
+  {id:'dever_25',  icon:'🧮', title:'Caçador de Dúvidas', desc:'Resolveu 25 deveres de casa com o Zen', prog:() => [STATS.homework || 0, 25]}
 ];
 const achDone = a => { try{ return a.check ? a.check() : a.prog()[0] >= a.prog()[1]; }catch(err){ return false; } };
 const CELEBRATE = ['A capivara tá orgulhosa de você!', 'Isso merece um banho de rio! 🌊', `Mandou muito, ${ME.nome}!`, 'Mais uma pra coleção!', 'Tô até dançando aqui! 🦫'];
@@ -5058,6 +5099,676 @@ setInterval(() => {
   if(Date.now() - duel.lastSeen > 30000){ toast(`A conexão com o ${duel.opp.nome} caiu.`); showDuelEnd(true); }
 }, 8000);
 renderDuelCard();
+
+// ---------- Dever de casa: foto da questão → resposta e passo a passo (inspirado no Gauth) ----------
+// A câmera abre dentro do app (com lanterna e zoom quando o aparelho deixa). Sem câmera, dá para escolher a foto ou digitar.
+// O histórico guarda só uma miniatura da foto, para não encher o espaço do navegador.
+const HW_GERAL = {k:'auto', nome:'Geral', cor:'#4A7A42', tom:'#DCEAD3'};
+const HW_SUBJ = [HW_GERAL, ...SUBJECTS];
+const HW = store.get('dever', []);
+const saveHW = () => store.set('dever', HW);
+const hwPref = Object.assign({k:'auto', mode:'um', tentar:false}, store.get('deverPref', {}));
+const saveHwPref = () => store.set('deverPref', hwPref);
+const hwSubj = k => HW_SUBJ.find(s => s.k === k) || HW_GERAL;
+const HW_X = '<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const HW_ICO = {
+  torch:'<path d="M8 3h8l-1 5H9z"/><path d="M9 8h6v3l-1.5 2v8h-3v-8L9 11z"/><path d="M12 14.5v1.5"/>',
+  gallery:'<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m20.5 16-4.5-4.5L6.5 19.5"/>',
+  type:'<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M7 14h10"/>',
+  rotate:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  back:'<path d="m15 6-6 6 6 6"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>'
+};
+const hwIco = (n, cls) => `<svg class="${cls || 'w-6 h-6'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HW_ICO[n]}</svg>`;
+// o ícone do botão de tirar foto muda com a matéria (Σ para Matemática, como no Gauth)
+const hwGlyph = (k, cls) => k === 'mat' ? `<span class="${cls} grid place-items-center font-extrabold text-[30px] leading-none" aria-hidden="true">Σ</span>`
+  : k === 'auto' ? `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>`
+  : glyph(k, cls);
+
+// ---- cartão na tela Ferramentas ----
+function renderHwCard(){
+  const el = document.getElementById('hw-card'); if(!el) return;
+  const recent = HW.slice(0, 3);
+  el.innerHTML = `<div class="rounded-2xl bg-forest-700 text-[#F3F1E6] shadow-card p-5 sm:p-6">
+    <div class="flex items-center gap-5">
+      <span class="hw-finder relative w-[72px] h-[72px] shrink-0 grid place-items-center text-[34px] font-extrabold text-[#F4BC4E]" aria-hidden="true">
+        <i class="hw-c tl"></i><i class="hw-c tr"></i><i class="hw-c bl"></i><i class="hw-c br"></i>Σ
+      </span>
+      <div class="min-w-0">
+        <h2 class="text-[22px] font-extrabold tracking-tight leading-tight">Dever de casa</h2>
+        <p class="mt-1 text-[15px] text-[#D5E2CC] leading-snug">Tire foto da questão e o Zen mostra a resposta e o passo a passo, em qualquer matéria.</p>
+      </div>
+    </div>
+    <div class="mt-5 flex flex-wrap gap-2">
+      <button type="button" data-hw-open="cam" class="inline-flex items-center gap-2 rounded-xl bg-[#F4BC4E] hover:bg-[#F7CB6E] text-[#2B2412] font-bold text-[15px] px-5 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-forest-700">${CAMERA_ICO}Tirar foto</button>
+      <button type="button" data-hw-open="file" class="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[15px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">${hwIco('gallery', 'w-[18px] h-[18px]')}Escolher do aparelho</button>
+      <button type="button" data-hw-open="type" class="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[15px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">${hwIco('type', 'w-[18px] h-[18px]')}Digitar a questão</button>
+    </div>
+    ${recent.length ? `<div class="mt-5 pt-4 border-t border-white/15">
+      <div class="flex items-center justify-between gap-3"><h3 class="text-[14px] font-bold text-[#D5E2CC]">Últimos deveres</h3>
+        ${HW.length > 3 ? `<button type="button" data-hw-open="hist" class="text-[13.5px] font-semibold text-[#F4BC4E] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-white rounded">Ver todos (${HW.length})</button>` : ''}</div>
+      <ul class="mt-2 grid sm:grid-cols-3 gap-2">${recent.map(hwItemHTML).join('')}</ul>
+    </div>` : ''}
+  </div>`;
+}
+function hwItemHTML(h){
+  const s = hwSubj(h.k), q = (h.data && h.data.questoes && h.data.questoes[0]) || {};
+  const title = (q.conceito || q.enunciado || h.text || 'Questão').replace(/[$*#`]/g, '').slice(0, 70);
+  return `<li><button type="button" data-hw-item="${h.id}" class="w-full flex items-center gap-3 rounded-xl bg-white/[.07] hover:bg-white/[.13] p-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+    ${h.thumb ? `<img src="${h.thumb}" alt="" class="w-12 h-12 rounded-lg object-cover bg-white shrink-0">` : `<span class="w-12 h-12 rounded-lg grid place-items-center shrink-0" style="background:${s.cor}">${hwGlyph(h.k, 'w-6 h-6 text-white')}</span>`}
+    <span class="min-w-0"><span class="block text-[14px] font-semibold leading-snug line-clamp-2">${esc(title)}</span><span class="block text-[12.5px] text-[#BFD0B4]">${s.nome} · ${ago(h.at)}</span></span>
+  </button></li>`;
+}
+function openHwHistory(){
+  const paint = () => {
+    document.getElementById('hwh-list').innerHTML = HW.map(h => `<div class="flex items-center gap-2">${hwItemHTML(h).replace(/^<li>|<\/li>$/g, '').replace('bg-white/[.07] hover:bg-white/[.13]', 'bg-cream hover:bg-sand border border-line').replace('text-[#BFD0B4]', 'text-muted')}
+      <button type="button" data-hw-del="${h.id}" class="w-9 h-9 shrink-0 rounded-lg grid place-items-center text-muted hover:bg-sand hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Apagar este dever">${HW_X}</button></div>`).join('')
+      || '<p class="text-[14.5px] text-muted">Nenhum dever guardado.</p>';
+  };
+  openModal(`${modalHead('Deveres de casa')}<div id="hwh-list" class="mt-4 space-y-2 max-h-[60vh] overflow-y-auto pr-1"></div>`);
+  paint();
+  document.getElementById('modal-box').onclick = e => {
+    const d = e.target.closest('[data-hw-del]');
+    if(d){ const i = HW.findIndex(h => h.id === d.dataset.hwDel); if(i >= 0){ HW.splice(i, 1); saveHW(); paint(); renderHwCard(); } return; }
+    const it = e.target.closest('[data-hw-item]');
+    if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); closeModal(); if(h) openHwSolution(hwFromSaved(h)); }
+  };
+}
+document.querySelector('[data-screen="ferramentas"]').addEventListener('click', async e => {
+  const b = e.target.closest('[data-hw-open]'), it = e.target.closest('[data-hw-item]');
+  if(it){ const h = HW.find(x => x.id === it.dataset.hwItem); if(h) openHwSolution(hwFromSaved(h)); return; }
+  if(!b) return;
+  const w = b.dataset.hwOpen;
+  if(w === 'cam') openHwCamera();
+  if(w === 'type') openHwTyped();
+  if(w === 'hist') openHwHistory();
+  if(w === 'file'){ const [f] = await pickImageFiles(false); if(f) openHwCamera(f); }
+});
+
+// ---- câmera ----
+let hwCam = null;
+async function openHwCamera(file){
+  if(hwCam) return;
+  const o = document.createElement('div');
+  o.id = 'hw-cam'; o.className = 'fixed inset-0 z-[58] bg-[#11180F] text-white flex flex-col select-none';
+  o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'Câmera do dever de casa');
+  o.innerHTML = `
+    <div class="flex items-center gap-2 px-3 pt-[max(12px,env(safe-area-inset-top))] pb-2">
+      <button type="button" data-hwc="close" class="hw-ib" aria-label="Fechar a câmera">${HW_X}</button>
+      <div class="flex-1 flex justify-center">
+        <div data-hwc-modes class="inline-flex rounded-full bg-white/10 p-1 text-[13.5px] font-semibold" role="radiogroup" aria-label="O que fotografar">
+          <button type="button" role="radio" data-hwc-mode="um" class="rounded-full px-3.5 py-1.5">Uma questão</button>
+          <button type="button" role="radio" data-hwc-mode="pagina" class="rounded-full px-3.5 py-1.5">Página inteira</button>
+        </div>
+      </div>
+      <button type="button" data-hwc="torch" class="hw-ib" aria-pressed="false" aria-label="Lanterna" title="Lanterna">${hwIco('torch', 'w-[22px] h-[22px]')}</button>
+    </div>
+    <div id="hwc-stage" class="relative flex-1 min-h-0 overflow-hidden">
+      <div id="hwc-live" class="absolute inset-0">
+        <video id="hwc-video" class="absolute inset-0 w-full h-full object-cover" playsinline muted autoplay></video>
+        <div id="hwc-msg" class="hidden absolute inset-0 grid place-items-center p-6 text-center"></div>
+        <div id="hwc-frame" class="hw-frame absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[18px]" aria-hidden="true"><i class="hw-c tl"></i><i class="hw-c tr"></i><i class="hw-c bl"></i><i class="hw-c br"></i></div>
+        <p id="hwc-hint" class="absolute left-0 right-0 top-4 text-center text-[14px] font-semibold drop-shadow" aria-live="polite"></p>
+        <div id="hwc-zoom" class="hidden absolute left-1/2 -translate-x-1/2 bottom-3 rounded-full bg-black/45 p-1 text-[13px] font-bold"></div>
+      </div>
+      <div id="hwc-crop" class="hidden absolute inset-0">
+        <div id="hwc-cwrap" class="absolute"><div id="hwc-box" class="hw-crop absolute touch-none" tabindex="-1">
+          ${['nw', 'ne', 'sw', 'se'].map(h => `<span data-h="${h}" class="hw-h hw-h-${h}"></span>`).join('')}
+        </div></div>
+        <p class="absolute left-0 right-0 top-3 text-center text-[14px] font-semibold drop-shadow">Arraste os cantos para deixar só ${hwPref.mode === 'pagina' ? 'o que o Zen deve resolver' : 'a questão'}</p>
+      </div>
+    </div>
+    <div class="pb-[max(14px,env(safe-area-inset-bottom))]">
+      <div id="hwc-subj" class="hw-chips flex gap-1 overflow-x-auto py-3 px-[calc(50%-48px)] snap-x snap-mandatory" role="radiogroup" aria-label="Matéria"></div>
+      <div id="hwc-actions" class="grid grid-cols-3 items-center justify-items-center px-6 pt-1"></div>
+    </div>`;
+  document.body.appendChild(o);
+  hwCam = {el:o, back:document.activeElement, stream:null, track:null, torch:false, step:'cam', shot:null, crop:null};
+  hwPaintModes(); hwPaintSubjects(); hwPaintActions();
+  o.addEventListener('click', hwCamClick);
+  document.addEventListener('keydown', hwCamKey);
+  document.addEventListener('paste', hwCamPaste);
+  o.addEventListener('dragover', e => { if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+  o.addEventListener('drop', e => { const [f] = imagesFrom(e.dataTransfer.files); if(f){ e.preventDefault(); hwUseFile(f); } });
+  window.addEventListener('resize', hwLayoutCrop);
+  o.querySelector('[data-hwc="close"]').focus();
+  if(file) hwUseFile(file); else hwStartCamera();
+}
+function closeHwCamera(){
+  if(!hwCam) return;
+  hwStopStream();
+  document.removeEventListener('keydown', hwCamKey);
+  document.removeEventListener('paste', hwCamPaste);
+  window.removeEventListener('resize', hwLayoutCrop);
+  const back = hwCam.back; hwCam.el.remove(); hwCam = null;
+  if(back && back.focus && document.body.contains(back)) back.focus();
+}
+function hwStopStream(){ if(hwCam && hwCam.stream){ hwCam.stream.getTracks().forEach(t => t.stop()); hwCam.stream = hwCam.track = null; hwCam.torch = false; } }
+const hwCamKey = e => { if(e.key === 'Escape' && hwCam){ e.preventDefault(); if(hwCam.step === 'crop' && hwCam.stream) hwBackToCam(); else closeHwCamera(); } };
+const hwCamPaste = e => { const [f] = imagesFrom(e.clipboardData && e.clipboardData.files); if(f){ e.preventDefault(); hwUseFile(f); } };
+async function hwStartCamera(){
+  const msg = (t, extra) => {
+    const m = document.getElementById('hwc-msg'); if(!m) return;
+    document.getElementById('hwc-frame').classList.add('hidden'); document.getElementById('hwc-hint').textContent = '';
+    m.classList.remove('hidden');
+    m.innerHTML = `<div class="max-w-[340px]">
+      <span class="mx-auto w-14 h-14 rounded-full bg-white/10 grid place-items-center">${CAMERA_ICO.replace('w-[18px] h-[18px]', 'w-7 h-7')}</span>
+      <p class="mt-3 text-[16px] font-semibold">${t}</p>
+      ${extra ? `<p class="mt-1 text-[14px] text-white/70">${extra}</p>` : ''}
+      <div class="mt-4 flex flex-wrap justify-center gap-2">
+        <button type="button" data-hwc="native" class="rounded-xl bg-[#F4BC4E] text-[#2B2412] font-bold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Usar a câmera do aparelho</button>
+        <button type="button" data-hwc="gallery" class="rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Escolher foto</button>
+      </div></div>`;
+    hwPaintActions();
+  };
+  document.getElementById('hwc-msg').classList.add('hidden');
+  document.getElementById('hwc-frame').classList.remove('hidden');
+  hwPaintHint();
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return msg('Este navegador não abre a câmera dentro do app.', 'Dá para usar a câmera do aparelho ou escolher uma foto.');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}});
+    if(!hwCam || hwCam.step !== 'cam'){ stream.getTracks().forEach(t => t.stop()); return; }   // fechou antes de a câmera abrir
+    hwCam.stream = stream; hwCam.track = stream.getVideoTracks()[0];
+    const v = document.getElementById('hwc-video'); v.srcObject = stream;
+    try{ await v.play(); }catch(err){}
+    hwPaintTorch(); hwPaintZoom(); hwPaintActions();
+  }catch(err){
+    const n = err && err.name;
+    if(n === 'NotAllowedError' || n === 'SecurityError') msg('O app não tem permissão para usar a câmera.', 'Libere no cadeado ao lado do endereço do site, ou use as opções abaixo.');
+    else if(n === 'NotFoundError' || n === 'OverconstrainedError') msg('Não achei nenhuma câmera neste aparelho.', 'Escolha uma foto que já está no aparelho.');
+    else msg('Não deu para abrir a câmera agora.', 'Ela pode estar aberta em outro app. Tente fechar e abrir de novo.');
+  }
+}
+const hwCaps = () => { try{ return hwCam && hwCam.track && hwCam.track.getCapabilities ? hwCam.track.getCapabilities() : {}; }catch(err){ return {}; } };
+function hwPaintTorch(){
+  const b = hwCam && hwCam.el.querySelector('[data-hwc="torch"]'); if(!b) return;
+  const can = !!hwCaps().torch, live = hwCam.step === 'cam';
+  b.classList.toggle('invisible', !live);
+  b.classList.toggle('opacity-45', !can);
+  b.classList.toggle('!bg-[#F4BC4E]', hwCam.torch); b.classList.toggle('!text-[#2B2412]', hwCam.torch);
+  b.setAttribute('aria-pressed', String(hwCam.torch));
+  b.setAttribute('aria-label', hwCam.torch ? 'Desligar a lanterna' : 'Ligar a lanterna');
+}
+async function hwToggleTorch(){
+  if(!hwCam.track) return toast('Abra a câmera para usar a lanterna.');
+  if(!hwCaps().torch) return toast('Este aparelho não deixa o navegador ligar a lanterna. Ligue pela central do celular.');
+  try{ await hwCam.track.applyConstraints({advanced:[{torch:!hwCam.torch}]}); hwCam.torch = !hwCam.torch; }
+  catch(err){ toast('Não deu para ligar a lanterna.'); }
+  hwPaintTorch();
+}
+function hwPaintZoom(){
+  const z = hwCaps().zoom, el = document.getElementById('hwc-zoom'); if(!el) return;
+  if(!z || !(z.max > z.min)){ el.classList.add('hidden'); return; }
+  const cur = (hwCam.track.getSettings().zoom) || z.min;
+  const opts = [z.min, Math.min(z.max, Math.max(z.min, 2)), Math.min(z.max, 3)].filter((v, i, a) => a.indexOf(v) === i);
+  el.innerHTML = opts.map(v => `<button type="button" data-hwc-zoom="${v}" class="min-w-[40px] rounded-full px-2.5 py-1 ${Math.abs(cur - v) < .05 ? 'bg-white text-[#11180F]' : 'text-white'}">${+v.toFixed(1)}x</button>`).join('');
+  el.classList.remove('hidden');
+}
+function hwPaintModes(){
+  hwCam.el.querySelectorAll('[data-hwc-mode]').forEach(b => {
+    const on = b.dataset.hwcMode === hwPref.mode;
+    b.setAttribute('aria-checked', String(on));
+    b.className = `rounded-full px-3.5 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'bg-white text-[#11180F]' : 'text-white/80 hover:text-white'}`;
+  });
+  const f = document.getElementById('hwc-frame');
+  if(f){ f.style.width = hwPref.mode === 'pagina' ? 'min(88%, 620px)' : 'min(88%, 560px)'; f.style.height = hwPref.mode === 'pagina' ? '78%' : 'min(34%, 240px)'; }
+  hwPaintHint();
+}
+const hwPaintHint = () => { const h = document.getElementById('hwc-hint'); if(h) h.textContent = hwPref.mode === 'pagina' ? 'Enquadre a página toda: o Zen resolve todas as questões' : 'Enquadre uma questão só'; };
+function hwPaintSubjects(){
+  const el = document.getElementById('hwc-subj');
+  el.innerHTML = HW_SUBJ.map(s => { const on = s.k === hwPref.k;
+    return `<button type="button" role="radio" aria-checked="${on}" data-hwc-subj="${s.k}" class="snap-center shrink-0 min-w-[96px] rounded-full px-3 py-1.5 text-[14px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'font-extrabold text-white' : 'font-semibold text-white/55 hover:text-white/85'}">${s.nome}${on ? '<span class="block mx-auto mt-1 w-1.5 h-1.5 rounded-full bg-[#F4BC4E]"></span>' : ''}</button>`; }).join('');
+  const sel = el.querySelector('[aria-checked="true"]');
+  if(sel) el.scrollLeft = sel.offsetLeft - (el.clientWidth - sel.offsetWidth) / 2;
+}
+function hwPaintActions(){
+  const el = document.getElementById('hwc-actions'); if(!el) return;
+  const s = hwSubj(hwPref.k), side = 'w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 grid place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-white';
+  const sideBtn = (act, ico, label) => `<button type="button" data-hwc="${act}" class="flex flex-col items-center gap-1 text-[12px] text-white/75 focus:outline-none group"><span class="${side}">${hwIco(ico, 'w-[22px] h-[22px] text-white')}</span>${label}</button>`;
+  if(hwCam.step === 'cam'){
+    const ready = !!hwCam.stream;
+    el.innerHTML = `${sideBtn('gallery', 'gallery', 'Galeria')}
+      <button type="button" data-hwc="shoot" ${ready ? '' : 'disabled'} class="hw-shutter w-[78px] h-[78px] rounded-full grid place-items-center disabled:opacity-40 focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F4BC4E]" aria-label="Tirar a foto">
+        <span class="w-[62px] h-[62px] rounded-full grid place-items-center text-white" style="background:${s.cor}">${hwGlyph(s.k, 'w-8 h-8')}</span></button>
+      ${sideBtn('type', 'type', 'Digitar')}`;
+  } else {
+    el.innerHTML = `${sideBtn('retake', 'back', 'Refazer')}
+      <button type="button" data-hwc="solve" class="hw-shutter w-[78px] h-[78px] rounded-full grid place-items-center focus:outline-none focus-visible:ring-4 focus-visible:ring-[#F4BC4E]" aria-label="Resolver com o Zen">
+        <span class="w-[62px] h-[62px] rounded-full grid place-items-center bg-[#F4BC4E] text-[#2B2412]">${hwIco('check', 'w-8 h-8')}</span></button>
+      ${sideBtn('rotate', 'rotate', 'Girar')}`;
+  }
+}
+async function hwCamClick(e){
+  const sb = e.target.closest('[data-hwc-subj]');
+  if(sb){ hwPref.k = sb.dataset.hwcSubj; saveHwPref(); hwPaintSubjects(); hwPaintActions(); return; }
+  const mb = e.target.closest('[data-hwc-mode]');
+  if(mb){ hwPref.mode = mb.dataset.hwcMode; saveHwPref(); hwPaintModes(); return; }
+  const zb = e.target.closest('[data-hwc-zoom]');
+  if(zb){ try{ await hwCam.track.applyConstraints({advanced:[{zoom:+zb.dataset.hwcZoom}]}); }catch(err){} hwPaintZoom(); return; }
+  const b = e.target.closest('[data-hwc]'); if(!b) return;
+  const a = b.dataset.hwc;
+  if(a === 'close') closeHwCamera();
+  if(a === 'torch') hwToggleTorch();
+  if(a === 'shoot') hwShoot();
+  if(a === 'gallery'){ const [f] = await pickImageFiles(false); if(f) hwUseFile(f); }
+  if(a === 'native'){ const f = await hwNativeCamera(); if(f) hwUseFile(f); }
+  if(a === 'type'){ closeHwCamera(); openHwTyped(); }
+  if(a === 'retake') hwBackToCam();
+  if(a === 'rotate') hwRotate();
+  if(a === 'solve') hwSolvePhoto();
+}
+// no celular, abre o app de câmera do próprio aparelho
+function hwNativeCamera(){
+  return new Promise(ok => {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.setAttribute('capture', 'environment');
+    i.onchange = () => ok(i.files[0]); i.click();
+  });
+}
+function hwShoot(){
+  const v = document.getElementById('hwc-video');
+  if(!hwCam.stream || !v.videoWidth) return;
+  const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  const r = v.getBoundingClientRect(), f = document.getElementById('hwc-frame').getBoundingClientRect();
+  const s = Math.max(r.width / c.width, r.height / c.height), ox = (r.width - c.width * s) / 2, oy = (r.height - c.height * s) / 2;
+  const fl = document.createElement('div'); fl.className = 'hw-flash absolute inset-0 bg-white pointer-events-none';
+  document.getElementById('hwc-stage').appendChild(fl); setTimeout(() => fl.remove(), 400);
+  // guarda só a parte que aparecia na tela (o vídeo é cortado para caber), e o que estava na moldura vira o recorte inicial
+  const vx = Math.max(0, -ox / s), vy = Math.max(0, -oy / s), vw = Math.min(c.width - vx, r.width / s), vh = Math.min(c.height - vy, r.height / s);
+  const shot = document.createElement('canvas'); shot.width = Math.round(vw); shot.height = Math.round(vh);
+  shot.getContext('2d').drawImage(c, vx, vy, vw, vh, 0, 0, shot.width, shot.height);
+  hwToCrop(shot, {x:(f.left - r.left - ox) / s - vx, y:(f.top - r.top - oy) / s - vy, w:f.width / s, h:f.height / s});
+}
+function hwLoadCanvas(file){
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const s = Math.min(1, 2400 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      ok(c);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('img')); };
+    img.src = url;
+  });
+}
+async function hwUseFile(file){
+  if(!hwCam) return openHwCamera(file);
+  try{ const c = await hwLoadCanvas(file); hwToCrop(c, {x:c.width * .02, y:c.height * .02, w:c.width * .96, h:c.height * .96}); }
+  catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+}
+function hwToCrop(canvas, crop){
+  if(!hwCam) return;
+  if(hwCam.torch) hwToggleTorch();
+  hwCam.step = 'crop'; hwCam.shot = canvas; hwCam.crop = hwClampCrop(crop);
+  document.getElementById('hwc-live').classList.add('hidden');
+  document.getElementById('hwc-crop').classList.remove('hidden');
+  const wrap = document.getElementById('hwc-cwrap');
+  wrap.querySelectorAll('canvas').forEach(x => x.remove());
+  canvas.className = 'absolute inset-0 w-full h-full rounded-md'; wrap.prepend(canvas);
+  hwLayoutCrop(); hwPaintTorch(); hwPaintActions();
+  hwCam.el.querySelector('[data-hwc="solve"]').focus();
+}
+function hwBackToCam(){
+  hwCam.step = 'cam'; hwCam.shot = null;
+  document.getElementById('hwc-crop').classList.add('hidden');
+  document.getElementById('hwc-live').classList.remove('hidden');
+  hwPaintTorch(); hwPaintActions();
+  if(!hwCam.stream) hwStartCamera();
+}
+function hwClampCrop(c){
+  const W = hwCam.shot.width, H = hwCam.shot.height, min = Math.min(60, W / 4, H / 4);
+  let w = Math.max(min, Math.min(W, c.w)), h = Math.max(min, Math.min(H, c.h));
+  return {x:Math.max(0, Math.min(W - w, c.x)), y:Math.max(0, Math.min(H - h, c.y)), w, h};
+}
+function hwLayoutCrop(){
+  if(!hwCam || hwCam.step !== 'crop') return;
+  const st = document.getElementById('hwc-stage'), wrap = document.getElementById('hwc-cwrap'), c = hwCam.shot;
+  const pad = 28, ds = Math.min((st.clientWidth - pad * 2) / c.width, (st.clientHeight - pad * 2 - 24) / c.height);
+  hwCam.ds = ds;
+  Object.assign(wrap.style, {width:c.width * ds + 'px', height:c.height * ds + 'px', left:(st.clientWidth - c.width * ds) / 2 + 'px', top:(st.clientHeight - c.height * ds) / 2 + 12 + 'px'});
+  hwPaintCrop();
+}
+function hwPaintCrop(){
+  const b = document.getElementById('hwc-box'), k = hwCam.crop, ds = hwCam.ds;
+  Object.assign(b.style, {left:k.x * ds + 'px', top:k.y * ds + 'px', width:k.w * ds + 'px', height:k.h * ds + 'px'});
+}
+// arrastar o recorte inteiro ou um dos cantos
+document.addEventListener('pointerdown', e => {
+  const box = e.target.closest && e.target.closest('#hwc-box'); if(!box || !hwCam) return;
+  e.preventDefault();
+  const h = e.target.dataset.h || 'move', start = {...hwCam.crop}, x0 = e.clientX, y0 = e.clientY;
+  try{ box.setPointerCapture(e.pointerId); }catch(err){}
+  const move = ev => {
+    const dx = (ev.clientX - x0) / hwCam.ds, dy = (ev.clientY - y0) / hwCam.ds, W = hwCam.shot.width, H = hwCam.shot.height, min = Math.min(60, W / 4, H / 4);
+    let {x, y, w, h: hh} = start;
+    if(h === 'move'){ x += dx; y += dy; }
+    else {
+      if(h.includes('w')){ const nx = Math.min(x + w - min, Math.max(0, x + dx)); w += x - nx; x = nx; }
+      if(h.includes('e')) w = Math.max(min, Math.min(W - x, w + dx));
+      if(h.includes('n')){ const ny = Math.min(y + hh - min, Math.max(0, y + dy)); hh += y - ny; y = ny; }
+      if(h.includes('s')) hh = Math.max(min, Math.min(H - y, hh + dy));
+    }
+    hwCam.crop = hwClampCrop({x, y, w, h:hh}); hwPaintCrop();
+  };
+  const up = () => { box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up); };
+  box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+});
+function hwRotate(){
+  const s = hwCam.shot, c = document.createElement('canvas'), k = hwCam.crop;
+  c.width = s.height; c.height = s.width;
+  const x = c.getContext('2d'); x.translate(c.width, 0); x.rotate(Math.PI / 2); x.drawImage(s, 0, 0);
+  hwToCrop(c, {x:s.height - k.y - k.h, y:k.x, w:k.h, h:k.w});
+}
+function hwCut(src, k, max, q){
+  const s = Math.min(1, max / Math.max(k.w, k.h)), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(k.w * s)); c.height = Math.max(1, Math.round(k.h * s));
+  c.getContext('2d').drawImage(src, k.x, k.y, k.w, k.h, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+function hwSolvePhoto(){
+  const k = hwCam.crop, url = hwCut(hwCam.shot, k, 1600, .88);
+  const img = {mime:'image/jpeg', data:url.split(',')[1], url, thumb:hwCut(hwCam.shot, k, 480, .72), small:hwCut(hwCam.shot, k, 360, .62)};
+  const mode = hwPref.mode, sk = hwPref.k;
+  closeHwCamera();
+  openHwSolution({id:'hw' + Date.now().toString(36), at:Date.now(), k:sk, chosen:sk !== 'auto', mode, img, text:'', data:null, thread:[], sel:0});
+}
+
+// ---- digitar a questão ----
+function openHwTyped(){
+  openModal(`${modalHead('Digitar a questão')}
+    <form id="hwt-form" class="mt-4 space-y-3.5" autocomplete="off">
+      <label class="block text-[13.5px] font-semibold text-ink-2">Matéria<select id="hwt-k" class="${fieldCls} mt-1 font-normal">${HW_SUBJ.map(s => `<option value="${s.k}" ${s.k === hwPref.k ? 'selected' : ''}>${s.k === 'auto' ? 'Geral (o Zen descobre)' : s.nome}</option>`).join('')}</select></label>
+      <label class="block text-[13.5px] font-semibold text-ink-2">A questão<textarea id="hwt-q" rows="6" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: Simplifique [(∛125)⁴]^(1/2)"></textarea></label>
+      <p id="hwt-st" class="text-[14px] min-h-[1.2em] text-[#B4472F]" aria-live="polite"></p>
+      <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button class="${btnPrimary}">Resolver com o Zen</button></div>
+    </form>`);
+  document.getElementById('hwt-q').focus();
+  document.getElementById('hwt-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const q = document.getElementById('hwt-q').value.trim(), k = document.getElementById('hwt-k').value;
+    if(!q){ document.getElementById('hwt-st').textContent = 'Escreva a questão primeiro.'; return document.getElementById('hwt-q').focus(); }
+    hwPref.k = k; saveHwPref(); closeModal();
+    openHwSolution({id:'hw' + Date.now().toString(36), at:Date.now(), k, chosen:k !== 'auto', mode:'um', img:null, text:q, data:null, thread:[], sel:0});
+  });
+}
+
+// ---- solução ----
+let hwCur = null;
+const hwFromSaved = h => ({...h, img:null, thumbOnly:h.thumb, data:JSON.parse(JSON.stringify(h.data)), thread:[...(h.thread || [])], sel:0, saved:true});
+function hwRemember(e){
+  const rec = {id:e.id, at:e.at, k:e.k, mode:e.mode, thumb:e.img ? e.img.small : e.thumbOnly || null, text:e.text, data:e.data, thread:e.thread.filter(m => m.role !== 'err').slice(-20)};
+  const i = HW.findIndex(h => h.id === e.id);
+  if(i >= 0) HW[i] = rec; else HW.unshift(rec);
+  HW.length = Math.min(HW.length, 30);
+  saveHW(); renderHwCard();
+}
+function openHwSolution(entry){
+  hwCur = entry;
+  let sh = document.getElementById('hw-sheet');
+  if(!sh){
+    sh = document.createElement('div');
+    sh.id = 'hw-sheet'; sh.className = 'fixed inset-0 z-[57] bg-cream overflow-y-auto';
+    sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.setAttribute('aria-labelledby', 'hws-title');
+    sh.innerHTML = `<div class="sticky top-0 z-10 bg-cream/95 backdrop-blur border-b border-line">
+        <div class="max-w-[780px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-2">
+          <button type="button" data-hws="close" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 -ml-2 text-[15px] font-semibold text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${hwIco('back', 'w-5 h-5')}Ferramentas</button>
+          <h2 id="hws-title" class="flex-1 text-center font-extrabold text-[16.5px]"><span class="hidden sm:inline">Dever de casa</span><span class="sr-only sm:hidden">Dever de casa</span></h2>
+          <button type="button" data-hws="new" class="${btnSoft} !py-1.5 !px-3 !text-[14px]">${CAMERA_ICO}Nova foto</button>
+        </div></div>
+      <div id="hws-body" class="max-w-[780px] mx-auto px-4 sm:px-6 py-5 sm:py-7"></div>`;
+    document.body.appendChild(sh);
+    sh.addEventListener('click', hwSheetClick);
+    sh.addEventListener('submit', hwSheetSubmit);
+    sh._back = document.activeElement;
+    document.addEventListener('keydown', hwSheetKey);
+  }
+  sh.scrollTop = 0;
+  renderHwSheet();
+  sh.querySelector('[data-hws="close"]').focus();
+  if(!entry.data) hwSolve();
+}
+function closeHwSheet(){
+  const sh = document.getElementById('hw-sheet'); if(!sh) return;
+  document.removeEventListener('keydown', hwSheetKey);
+  const back = sh._back; sh.remove(); hwCur = null;
+  if(back && back.focus && document.body.contains(back)) back.focus();
+}
+// Esc fecha a solução, a não ser que outra janela (conquista, duelo, modal) esteja por cima
+const hwSheetKey = e => {
+  if(e.key !== 'Escape' || e.defaultPrevented || hwCam) return;
+  if([...document.querySelectorAll('[aria-modal="true"]')].some(el => el.id !== 'hw-sheet' && !el.classList.contains('hidden'))) return;
+  closeHwSheet();
+};
+const hwQ = () => hwCur && hwCur.data && hwCur.data.questoes[hwCur.sel];
+function renderHwSheet(){
+  const e = hwCur, body = document.getElementById('hws-body'); if(!e || !body) return;
+  const s = hwSubj(e.k), Q = hwQ(), pic = e.img ? e.img.url : e.thumbOnly;
+  const chip = `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold" style="background:${s.tom};color:${s.cor}">${hwGlyph(e.k, 'w-4 h-4 !text-[15px]')}${s.nome}</span>`;
+  // a questão (foto + o texto que o Zen leu)
+  let html = `<section class="rounded-2xl bg-paper border border-line shadow-card overflow-hidden" aria-label="A questão">
+    ${pic ? `<div class="relative bg-[#11180F] grid place-items-center ${e.busy ? 'hw-scan' : ''}"><img src="${pic}" alt="Foto da questão" class="max-h-[260px] w-auto max-w-full object-contain"></div>` : ''}
+    <div class="px-5 py-4">
+      <div class="flex flex-wrap items-center gap-2">${chip}${e.mode === 'pagina' ? '<span class="text-[13px] text-muted">Página inteira</span>' : ''}</div>
+      ${Q && Q.enunciado ? `<div class="zen-md mt-3 !text-[15.5px]">${md(Q.enunciado)}</div>` : e.text ? `<p class="mt-3 text-[15.5px] whitespace-pre-wrap">${esc(e.text)}</p>` : ''}
+    </div></section>`;
+  if(e.busy){
+    html += `<div class="mt-5 flex items-center gap-3 rounded-2xl bg-paper border border-line px-5 py-4" role="status">
+      <svg class="capy-float w-[64px] h-auto aspect-[172/160] shrink-0" aria-hidden="true"><use href="#capy-happy"/></svg>
+      <div><p class="font-bold text-[16px]">${e.img ? 'O Zen está lendo a questão...' : 'O Zen está resolvendo...'}</p><p class="text-[14px] text-muted">Já já chegam a resposta e o passo a passo.</p></div></div>`;
+  } else if(e.err){
+    const set = ['semchave', 'chave', 'modelo'].includes(e.err.code);
+    html += `<div class="mt-5 rounded-2xl bg-sand border border-[#E6D9B8] px-5 py-4">
+      <p class="text-[15px]">${esc(e.errMsg || zenErrorText(e.err))}</p>
+      <div class="mt-3 flex flex-wrap gap-2">${set ? `<button type="button" data-hws="settings" class="${btnPrimary} !py-2 !text-[14px]">Abrir Configurações</button>` : ''}
+        <button type="button" data-hws="retry" class="${btnSoft} !py-2 !text-[14px]">Tentar de novo</button>
+        ${e.img ? `<button type="button" data-hws="new" class="${btnSoft} !py-2 !text-[14px]">Tirar outra foto</button>` : ''}</div></div>`;
+  } else if(Q){
+    html += hwSolutionHTML(e, Q);
+  }
+  const inp = document.getElementById('hws-input'), draft = inp && !e.sent ? inp.value : '';
+  body.innerHTML = html;
+  renderMath(body);
+  e.anim = null; e.sent = false;
+  const ni = document.getElementById('hws-input'); if(ni && draft) ni.value = draft;
+}
+function hwSolutionHTML(e, Q){
+  const qs = e.data.questoes, hide = hwPref.tentar && !Q.revealed;
+  const n = Q.shown == null ? Q.passos.length : Q.shown;
+  let h = '';
+  if(e.data.aviso) h += `<p class="mt-4 rounded-xl bg-sand border border-[#E6D9B8] px-4 py-2.5 text-[14px]">⚠️ ${esc(e.data.aviso)}</p>`;
+  if(qs.length > 1) h += `<div class="mt-5 flex gap-1.5 overflow-x-auto hw-chips" role="tablist" aria-label="Questões da página">${qs.map((q, i) => `<button type="button" role="tab" aria-selected="${i === e.sel}" data-hws-q="${i}" class="shrink-0 rounded-full px-3.5 py-1.5 text-[14px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${i === e.sel ? 'bg-forest-700 text-[#F3F1E6]' : 'bg-paper border border-line text-ink-2 hover:bg-sand'}">Questão ${i + 1}</button>`).join('')}</div>`;
+  // resposta
+  h += `<section class="mt-5 rounded-2xl border-2 border-[#F4BC4E] bg-[#FFF8E6] px-5 py-4" aria-labelledby="hws-ans">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h3 id="hws-ans" class="font-extrabold text-[15px] text-[#9A6A12]">Resposta</h3>
+      <label class="inline-flex items-center gap-2 text-[13.5px] text-ink-2"><input type="checkbox" data-hws-tentar class="w-4 h-4 accent-[#4A7A42]" ${hwPref.tentar ? 'checked' : ''}> Quero tentar antes</label>
+    </div>
+    ${hide ? `<div class="relative mt-2"><div class="hw-blur zen-md !text-[19px] font-bold" aria-hidden="true">${md(Q.resposta)}</div>
+        <div class="absolute inset-0 grid place-items-center"><button type="button" data-hws="reveal" class="${btnPrimary} !py-2 !text-[14px]">Mostrar a resposta</button></div></div>
+        <p class="mt-2 text-[13.5px] text-muted">Tente no papel primeiro. Os passos aparecem um de cada vez.</p>`
+      : `<div class="zen-md mt-1 !text-[19px] font-bold">${md(Q.resposta)}</div>`}
+    ${Q.conceito ? `<p class="mt-2 text-[13.5px] text-ink-2">Assunto: <b>${esc(Q.conceito)}</b></p>` : ''}
+  </section>`;
+  // passo a passo
+  h += `<section class="mt-5" aria-labelledby="hws-steps">
+    <h3 id="hws-steps" class="font-extrabold text-[18px]">Passo a passo</h3>
+    <ol class="mt-3 space-y-3">${Q.passos.slice(0, n).map((p, i) => `<li class="${e.anim === 'all' || e.anim === i ? 'hw-step ' : ''}flex gap-3 rounded-2xl bg-paper border border-line shadow-card px-4 py-3.5" style="animation-delay:${e.anim === 'all' ? i * 90 : 0}ms">
+      <span class="w-8 h-8 shrink-0 rounded-full bg-forest-100 text-forest-700 grid place-items-center font-extrabold text-[14.5px]">${i + 1}</span>
+      <div class="min-w-0 flex-1">
+        ${p.titulo ? `<p class="font-bold text-[15.5px]">${md(p.titulo).replace(/^<p>|<\/p>$/g, '')}</p>` : ''}
+        <div class="zen-md mt-0.5">${md(p.texto)}</div>
+        ${p.extra ? `<div class="mt-2.5 rounded-xl bg-[#E6EFDC] border border-[#CFE0BF] px-3.5 py-2.5"><p class="text-[12.5px] font-bold text-[#3F6B35]">De outro jeito</p><div class="zen-md">${md(p.extra)}</div></div>`
+          : `<button type="button" data-hws-step="${i}" ${p.busy ? 'disabled' : ''} class="mt-1.5 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-forest-500 hover:text-forest-700 hover:underline disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">${p.busy ? `${spinner} Explicando...` : 'Não entendi este passo'}</button>`}
+      </div></li>`).join('')}</ol>
+    ${n < Q.passos.length ? `<div class="mt-3 flex flex-wrap gap-2"><button type="button" data-hws="next" class="${btnPrimary} !py-2 !text-[14px]">Próximo passo (${n + 1} de ${Q.passos.length})</button><button type="button" data-hws="all" class="${btnSoft} !py-2 !text-[14px]">Mostrar todos</button></div>` : ''}
+    ${Q.cuidado && n >= Q.passos.length ? `<p class="mt-3 rounded-xl bg-[#FBE9E2] border border-[#F0CDBF] px-4 py-2.5 text-[14.5px]"><b class="text-[#B4472F]">Cuidado:</b> ${md(Q.cuidado).replace(/^<p>|<\/p>$/g, '')}</p>` : ''}
+  </section>`;
+  // dúvidas sobre a questão
+  const thread = e.thread.filter(m => m.sel === e.sel);
+  h += `<section class="mt-6 rounded-2xl bg-paper border border-line shadow-card px-5 py-4" aria-labelledby="hws-ask">
+    <h3 id="hws-ask" class="font-extrabold text-[17px]">Ainda com dúvida?</h3>
+    <div class="mt-3 space-y-2.5">${thread.map(m => m.role === 'user'
+      ? `<div class="flex justify-end"><p class="max-w-[85%] rounded-2xl rounded-br-md bg-forest-500 text-white text-[14.5px] px-3.5 py-2 whitespace-pre-wrap">${esc(m.text)}</p></div>`
+      : m.role === 'err' ? `<p class="rounded-xl bg-sand px-3.5 py-2 text-[14px]">${esc(m.text)}</p>`
+      : `<div class="max-w-[92%] rounded-2xl rounded-tl-md bg-[#E6EFDC] border border-[#CFE0BF] px-3.5 py-2.5"><div class="zen-md">${md(m.text)}</div></div>`).join('')}
+      ${e.asking ? `<div class="inline-flex rounded-2xl bg-[#E6EFDC] border border-[#CFE0BF] px-4 py-3 gap-1.5" role="status" aria-label="Zen está escrevendo"><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span></div>` : ''}
+    </div>
+    <div class="mt-3 flex flex-wrap gap-1.5">${[['simples', 'Explica mais simples'], ['curta', 'Resposta mais curta'], ['outro', 'Outro jeito de resolver'], ['porque', 'Por que funciona?'], ['check', 'Conferir a minha resposta']].map(([k, l]) => `<button type="button" data-hws-chip="${k}" class="rounded-full border px-3 py-1.5 text-[13.5px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${e.askMode === k ? 'bg-forest-700 border-forest-700 text-[#F3F1E6]' : 'border-line bg-cream text-ink-2 hover:bg-sand'}">${l}</button>`).join('')}</div>
+    <form data-hws-form class="mt-3 flex gap-2" autocomplete="off">
+      <label class="sr-only" for="hws-input">${e.askMode === 'check' ? 'A resposta que você achou' : 'Pergunte ao Zen sobre esta questão'}</label>
+      <input id="hws-input" class="${fieldCls}" placeholder="${e.askMode === 'check' ? 'Digite a resposta que você achou' : 'Pergunte ao Zen sobre esta questão'}" ${e.asking ? 'disabled' : ''}>
+      <button class="${btnPrimary} !px-4" ${e.asking ? 'disabled' : ''}>Enviar</button>
+    </form>
+  </section>`;
+  // treino
+  h += `<section class="mt-5 rounded-2xl bg-paper border border-line shadow-card px-5 py-4" aria-labelledby="hws-train">
+    <div class="flex flex-wrap items-center justify-between gap-2"><h3 id="hws-train" class="font-extrabold text-[17px]">Treinar com parecidas</h3>
+      ${Q.treino ? '' : `<button type="button" data-hws="train" ${Q.trainBusy ? 'disabled' : ''} class="${btnSoft} !py-2 !text-[14px]">${Q.trainBusy ? `${spinner} Criando...` : 'Criar 3 questões parecidas'}</button>`}</div>
+    ${Q.treino ? `<ol class="mt-3 space-y-2.5">${Q.treino.map((t, i) => `<li class="rounded-xl bg-cream border border-line px-4 py-3"><div class="zen-md"><b>${i + 1}.</b> ${md(t.enunciado).replace(/^<p>/, '')}</div>
+      <details class="mt-1.5"><summary class="cursor-pointer text-[13.5px] font-semibold text-forest-500">Ver a resposta</summary><div class="zen-md mt-1.5"><p><b>Resposta:</b> ${md(t.resposta).replace(/^<p>|<\/p>$/g, '')}</p>${t.resolucao ? md(t.resolucao) : ''}</div></details></li>`).join('')}</ol>`
+      : `<p class="mt-1 text-[14px] text-muted">O Zen cria questões do mesmo assunto, da mais fácil para a mais difícil.</p>`}
+    ${Q.trainErr ? `<p class="mt-2 text-[14px] text-[#B4472F]">${esc(Q.trainErr)}</p>` : ''}
+  </section>`;
+  // guardar
+  h += `<div class="mt-5 mb-8 flex flex-wrap gap-2">
+    <button type="button" data-hws="note" class="${btnPrimary} !py-2 !text-[14px]">Salvar em Anotações</button>
+    <button type="button" data-hws="card" class="${btnSoft} !py-2 !text-[14px]">${svg('cards', 'w-[18px] h-[18px]')}Virar flashcard</button>
+    <button type="button" data-hws="chat" class="${btnSoft} !py-2 !text-[14px]">${svg('chat', 'w-[18px] h-[18px]')}Continuar no chat</button>
+    <button type="button" data-hws="copy" class="${btnSoft} !py-2 !text-[14px]">Copiar</button>
+  </div>`;
+  return h;
+}
+const HW_FORMAT = `{"materia":"${SUBJECTS.map(s => s.k).join('|')}","questoes":[{"enunciado":"a questão transcrita, completa (markdown; fórmulas em LaTeX $...$)","conceito":"o assunto principal, em até 6 palavras","resposta":"a resposta final, curta (se for de múltipla escolha, a letra e o valor)","passos":[{"titulo":"o que fazer neste passo, curto","texto":"a explicação, com as contas"}],"cuidado":"o erro mais comum nesse tipo de questão, em 1 frase"}],"aviso":"só se a foto estiver ilegível, cortada ou sem questão"}`;
+async function hwSolve(){
+  const e = hwCur, subj = subjectOf(e.k);
+  e.busy = true; e.err = null; e.errMsg = ''; renderHwSheet();
+  const what = e.img ? (e.mode === 'pagina' ? 'A foto é uma página de dever de casa. Resolva TODAS as questões que aparecem nela (até 8), na ordem em que aparecem.'
+    : 'A foto mostra uma questão de dever de casa. Resolva a questão principal (se aparecerem várias, a que está inteira e mais no centro).')
+    : `Resolva esta questão de dever de casa:\n\n${e.text}`;
+  const prompt = `${what}
+${subj ? `Matéria: ${subj.nome}.` : 'Descubra de que matéria é.'}
+Explique como um bom professor explicaria para mim, aluno do ensino médio: de 2 a 8 passos curtos, cada um com o porquê, sem pular contas. Confira a conta no fim. Se for de interpretação, redação ou opinião, mostre o caminho e um exemplo de resposta.
+Formato: ${HW_FORMAT}`;
+  try{
+    const d = await askGeminiJSON(prompt, zenSystemPrompt(), e.img ? [e.img] : []);
+    const txt = v => String(v == null ? '' : v).trim();
+    const qs = (d.questoes || d.questions || []).filter(q => q && (q.resposta || (q.passos || []).length)).slice(0, 8).map(q => ({
+      enunciado:txt(q.enunciado), conceito:txt(q.conceito), resposta:txt(q.resposta) || '—', cuidado:txt(q.cuidado),
+      passos:(q.passos || []).filter(p => p && (p.texto || p.titulo)).slice(0, 12).map(p => typeof p === 'string' ? {titulo:'', texto:p} : {titulo:txt(p.titulo), texto:txt(p.texto)})
+    }));
+    if(!qs.length){ if(d.aviso){ e.errMsg = `O Zen não conseguiu resolver: ${txt(d.aviso)}`; throw new ZenError('vazio'); } throw new ZenError('json'); }
+    if(!e.chosen && SUBJECTS.some(s => s.k === d.materia)) e.k = d.materia;
+    if(hwPref.tentar) qs.forEach(q => q.shown = 1);
+    e.anim = 'all';
+    e.data = {questoes:qs, aviso:qs.length ? txt(d.aviso) : ''}; e.sel = 0;
+    STATS.toolUses++; STATS.homework = (STATS.homework || 0) + 1; saveStats();
+    addXP(XP.ferramenta, 'ferramenta', subjectOf(e.k)); scheduleChecks();
+    hwRemember(e);
+  }catch(err){ e.err = err; }
+  e.busy = false;
+  if(hwCur === e) renderHwSheet();
+}
+const hwContext = (e, Q) => `Questão${e.mode === 'pagina' ? ` ${e.sel + 1} da página` : ''}: ${Q.enunciado || e.text}
+Resposta: ${Q.resposta}
+Passos:
+${Q.passos.map((p, i) => `${i + 1}. ${p.titulo ? p.titulo + ': ' : ''}${p.texto}`).join('\n')}`;
+async function hwAskZen(prompt){
+  const e = hwCur;
+  const parts = [...imgParts(e.img ? [e.img] : []), {text:prompt + '\n\nResponda curto (até 150 palavras), em markdown, com fórmulas em LaTeX.'}];
+  return (await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts}]})).text;
+}
+async function hwAsk(text){
+  const e = hwCur, Q = hwQ(), mode = e.askMode;
+  if(!text || e.asking) return;
+  const prev = e.thread.filter(m => m.sel === e.sel && m.role !== 'err').slice(-6).map(m => `${m.role === 'user' ? 'Aluno' : 'Zen'}: ${m.text}`).join('\n');
+  e.thread.push({role:'user', sel:e.sel, text:mode === 'check' ? `Minha resposta: ${text}` : text});
+  e.asking = true; e.askMode = null; e.sent = true; renderHwSheet();
+  const ask = mode === 'check' ? `Eu resolvi e cheguei em: "${text}". Diga se está certo (pode estar escrito de outro jeito equivalente). Se estiver errado, mostre com carinho onde eu provavelmente errei e como corrigir.` : `Minha pergunta: ${text}`;
+  try{ e.thread.push({role:'model', sel:e.sel, text:await hwAskZen(`Estamos vendo esta questão do meu dever de casa:\n${hwContext(e, Q)}\n\n${prev ? `Conversa até agora:\n${prev}\n\n` : ''}${ask}`)}); STATS.chatMessages++; addXP(XP.chat, 'chat'); }
+  catch(err){ e.thread.push({role:'err', sel:e.sel, text:zenErrorText(err)}); }
+  e.asking = false;
+  if(e.data) hwRemember(e);
+  if(hwCur === e){ renderHwSheet(); const i = document.getElementById('hws-input'); if(i) i.focus(); }
+}
+const HW_CHIPS = {simples:'Explica de um jeito mais simples, como se eu tivesse 12 anos.', curta:'Me dá só a resposta e o caminho em 2 ou 3 linhas.', outro:'Tem outro jeito de resolver? Mostra.', porque:'Por que esse método funciona? Qual é a ideia por trás?'};
+async function hwExplainStep(i){
+  const e = hwCur, Q = hwQ(), p = Q.passos[i];
+  p.busy = true; renderHwSheet();
+  try{ p.extra = await hwAskZen(`Estamos vendo esta questão do meu dever de casa:\n${hwContext(e, Q)}\n\nNão entendi o passo ${i + 1}${p.titulo ? ` ("${p.titulo}")` : ''}. Explique só esse passo de outro jeito, mais simples e com um exemplo pequeno.`); hwRemember(e); }
+  catch(err){ toast(zenErrorText(err)); }
+  p.busy = false;
+  if(hwCur === e) renderHwSheet();
+}
+async function hwTrain(){
+  const e = hwCur, Q = hwQ();
+  Q.trainBusy = true; Q.trainErr = ''; renderHwSheet();
+  try{
+    const d = await askGeminiJSON(`Crie 3 questões parecidas com esta (mesmo assunto, da mais fácil para a mais difícil) para eu treinar:\n${hwContext(e, Q)}\n\nFormato: {"questoes":[{"enunciado":"...","resposta":"curta","resolucao":"resolução em 2 a 4 linhas"}]}. Fórmulas em LaTeX $...$.`, zenSystemPrompt());
+    const t = (d.questoes || []).filter(x => x && x.enunciado && x.resposta).slice(0, 3).map(x => ({enunciado:String(x.enunciado), resposta:String(x.resposta), resolucao:String(x.resolucao || '')}));
+    if(!t.length) throw new ZenError('json');
+    Q.treino = t; hwRemember(e);
+  }catch(err){ Q.trainErr = zenErrorText(err); }
+  Q.trainBusy = false;
+  if(hwCur === e) renderHwSheet();
+}
+function hwMarkdown(e, Q){
+  return [`**Questão:** ${Q.enunciado || e.text}`, `**Resposta:** ${Q.resposta}`, '## Passo a passo',
+    ...Q.passos.map((p, i) => `${i + 1}. ${p.titulo ? `**${p.titulo}** ` : ''}${p.texto.replace(/\n+/g, ' ')}`),
+    Q.cuidado ? `**Cuidado:** ${Q.cuidado}` : ''].filter(Boolean).join('\n\n');
+}
+async function hwSheetClick(ev){
+  const e = hwCur; if(!e) return;
+  const qb = ev.target.closest('[data-hws-q]');
+  if(qb){ e.sel = +qb.dataset.hwsQ; e.askMode = null; e.anim = 'all'; renderHwSheet(); return; }
+  if(ev.target.matches('[data-hws-tentar]')){
+    hwPref.tentar = ev.target.checked; saveHwPref();
+    const Q = hwQ(); if(Q && hwPref.tentar && !Q.revealed) Q.shown = Math.min(Q.shown == null ? 1 : Q.shown, 1);
+    if(Q && !hwPref.tentar) Q.shown = null;
+    renderHwSheet(); return;
+  }
+  const st = ev.target.closest('[data-hws-step]'); if(st) return hwExplainStep(+st.dataset.hwsStep);
+  const ch = ev.target.closest('[data-hws-chip]');
+  if(ch){
+    const k = ch.dataset.hwsChip;
+    if(k === 'check'){ e.askMode = e.askMode === 'check' ? null : 'check'; renderHwSheet(); document.getElementById('hws-input').focus(); }
+    else hwAsk(HW_CHIPS[k]);
+    return;
+  }
+  const b = ev.target.closest('[data-hws]'); if(!b) return;
+  const a = b.dataset.hws, Q = hwQ();
+  if(a === 'close') closeHwSheet();
+  if(a === 'new'){ closeHwSheet(); openHwCamera(); }
+  if(a === 'retry') hwSolve();
+  if(a === 'settings'){ closeHwSheet(); openSettings(); }
+  if(a === 'reveal'){ Q.revealed = true; renderHwSheet(); }
+  if(a === 'next'){ Q.shown = (Q.shown || 0) + 1; e.anim = Q.shown - 1; if(Q.shown >= Q.passos.length) Q.revealed = true; renderHwSheet(); }
+  if(a === 'all'){ e.anim = 'all'; Q.shown = Q.passos.length; Q.revealed = true; renderHwSheet(); }
+  if(a === 'train') hwTrain();
+  if(a === 'note'){
+    const t = `Dever: ${Q.conceito || (subjectOf(e.k) || HW_GERAL).nome}`;
+    const n = createNoteFromMarkdown(t, hwMarkdown(e, Q), '📸', subjectOf(e.k) ? e.k : 'geral');
+    closeHwSheet(); toast('Salvo em Anotações.'); location.hash = 'anotacoes'; openPage(n.id);
+  }
+  if(a === 'card'){
+    const k = subjectOf(e.k) ? e.k : SUBJECTS[0].k;
+    addCards([{f:(Q.enunciado || e.text).slice(0, 400), v:`${Q.resposta}\n\n${Q.passos.map((p, i) => `${i + 1}. ${p.titulo || p.texto.slice(0, 90)}`).join('\n')}`, k}]);
+    saveStats(); toast('Virou flashcard. Ele aparece na sua revisão.');
+  }
+  if(a === 'chat'){
+    const img = e.img; closeHwSheet(); location.hash = 'chat';
+    sendChat(`Estou fazendo esta questão do dever de casa:\n${Q.enunciado || e.text}\n\nA resposta é ${Q.resposta}. Me explica com calma a parte mais difícil e depois me faz uma pergunta para ver se eu entendi.`, img ? [img] : undefined);
+  }
+  if(a === 'copy') navigator.clipboard.writeText(hwMarkdown(e, Q)).then(() => toast('Copiado.'), () => toast('Não deu para copiar.'));
+}
+function hwSheetSubmit(ev){
+  if(!ev.target.matches('[data-hws-form]')) return;
+  ev.preventDefault();
+  const i = document.getElementById('hws-input'); hwAsk(i.value.trim());
+}
+renderHwCard();
 
 // ---------- Arquivos ----------
 // Os arquivos ficam no IndexedDB deste navegador (aguenta PDFs e fotos grandes), um banco por perfil
