@@ -1,11 +1,11 @@
-// Zen Estudos (teste): deixa o app abrir sem internet depois da primeira vez.
+// Zen Estudos: deixa o app abrir sem internet depois da primeira vez.
 // A IA (Gemini) e o quadro/duelo ao vivo continuam precisando de internet.
-// Fica junto do teste-zen-estudos.html no site; o sw.js do app original não é mexido.
-const CACHE = 'zen-teste-v1';
+// Fica na mesma pasta do app no site (o index.html, ou o teste-zen-estudos.html).
+const CACHE = 'zen-teste-v2';
 const BIBLIOTECAS = ['cdn.tailwindcss.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./teste-zen-estudos.html', './icon-192.png', './zen-estudos.webmanifest']).catch(() => {})));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './icon-192.png', './zen-estudos.webmanifest']).catch(() => {})));
   self.skipWaiting();
 });
 self.addEventListener('activate', e => {
@@ -22,7 +22,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(fetch(req).then(r => {
       if(r.ok){ const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return r;
-    }).catch(() => caches.match(req, {ignoreSearch:true}).then(r => r || caches.match('./teste-zen-estudos.html'))));
+    }).catch(() => caches.match(req, {ignoreSearch:true}).then(r => r || caches.match('./'))));
     return;
   }
   // bibliotecas e fontes: usa a guardada na hora e atualiza por trás
