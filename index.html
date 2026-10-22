@@ -119,6 +119,16 @@
   .capy-float { animation: capyFloat 4.5s ease-in-out infinite; }
   @keyframes capyFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
   @media (prefers-reduced-motion: reduce) { .capy-float { animation:none; } }
+  /* cartão da conquista: entra pulando, a medalha gira e os raios ficam rodando atrás */
+  .ach-fade { animation: achFade .25s ease-out; }
+  @keyframes achFade { from { opacity:0; } }
+  .ach-pop { animation: achPop .55s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes achPop { from { opacity:0; transform:scale(.7) translateY(24px); } }
+  .ach-badge { animation: achBadge .9s .15s cubic-bezier(.2,1.6,.4,1) both; box-shadow:0 0 0 8px #FBEBC6, 0 14px 30px -8px rgba(226,150,46,.65); }
+  @keyframes achBadge { 0% { transform:scale(0) rotate(-35deg); } 60% { transform:scale(1.15) rotate(8deg); } 100% { transform:scale(1) rotate(0); } }
+  .ach-rays { background:repeating-conic-gradient(rgba(244,188,78,.25) 0 9deg, transparent 9deg 18deg); -webkit-mask:radial-gradient(circle, #000 0, transparent 62%); mask:radial-gradient(circle, #000 0, transparent 62%); animation: achSpin 16s linear infinite; }
+  @keyframes achSpin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .ach-fade, .ach-pop, .ach-badge, .ach-rays { animation:none; } }
   /* reação do duelo: o emoji sobe e some em cima do avatar */
   .du-bubble { position:absolute; top:-18px; left:22px; font-size:26px; opacity:0; pointer-events:none; }
   .du-bubble.du-right { left:auto; right:22px; }
@@ -1485,6 +1495,14 @@ function openSettings(){
       </div>
     </section>
     <section class="mt-5 pt-5 border-t border-line">
+      <h3 class="font-bold text-[16px]">Comemorações</h3>
+      <p class="mt-1 text-[14px] text-ink-2">Quando desbloqueia uma conquista ou sobe de nível, tem confete e um som de festa.</p>
+      <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label class="flex items-center gap-2 text-[14.5px]"><input id="set-sons" type="checkbox" class="w-4 h-4 accent-[#4A7A42]" ${SETTINGS.sons ? 'checked' : ''}> Tocar o som de festa</label>
+        <button id="set-party" type="button" class="${btnSoft} !py-2 !text-[14px]">Ver como fica 🎉</button>
+      </div>
+    </section>
+    <section class="mt-5 pt-5 border-t border-line">
       <h3 class="font-bold text-[16px]">Quadro ao vivo</h3>
       <p class="mt-1 text-[14px] text-ink-2">Os quadros compartilhados passam por 3 servidores públicos ao mesmo tempo, como no app original. Basta um funcionar.</p>
       <button id="set-live-test" type="button" class="${btnSoft} mt-3">Testar servidores</button>
@@ -1519,6 +1537,8 @@ function openSettings(){
   document.getElementById('set-main').addEventListener('change', e => { SETTINGS.main = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-backup').addEventListener('change', e => { SETTINGS.backup = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-live-test').addEventListener('click', openServerTest);
+  document.getElementById('set-sons').addEventListener('change', e => { SETTINGS.sons = e.target.checked; saveSettings(); if(SETTINGS.sons) partySound(false); });
+  document.getElementById('set-party').addEventListener('click', () => { closeModal(); celebrateAchievement({id:'demo', icon:'🎉', title:'Assim fica!', desc:'É desse jeito que o Zen comemora cada conquista nova.'}); });
   document.getElementById('set-wipe').addEventListener('click', () => {
     if(!confirm(`Apagar TUDO do perfil ${ME.nome} neste navegador? Isso não tem volta.`)) return;
     window.onbeforeunload = null; window.__wiping = true;
@@ -1594,6 +1614,7 @@ function addXP(amount, kind, subject){
   const after = levelInfo(STATS.totalXP);
   if(after.level > before){
     toast(`Subiu para o nível ${after.level}: ${after.title}! 🦫`);
+    celebrateLevel();
     buildCapySprite();
     const novos = CAPY_ACC.filter(a => a.level === after.level);
     if(novos.length) setTimeout(() => toast(`Acessório novo para a capivara: ${novos.map(a => a.name).join(', ')}. Veja em Conquistas.`), 2800);
@@ -1694,6 +1715,147 @@ function checkMissions(){
 
 // ---------- Conquistas (do app original; as que dependem de duelo ao vivo ficaram de fora) ----------
 const sumValues = o => Object.values(o || {}).reduce((a, b) => a + (+b || 0), 0);
+// ---------- Comemoração: confete, som de festa e o cartão da conquista ----------
+// O som é feito na hora pelo navegador (Web Audio), sem baixar nenhum arquivo. Dá para desligar em Configurações.
+if(SETTINGS.sons === undefined) SETTINGS.sons = true;
+const PARTY_COLORS = ['#4A7A42', '#7FB069', '#F4BC4E', '#ED9D44', '#E26C45', '#4B84B4', '#8B5CB8', '#F6D58E'];
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function confetti(power = 1){
+  if(reducedMotion()) return;
+  const c = document.createElement('canvas'), W = innerWidth, H = innerHeight, d = window.devicePixelRatio || 1;
+  c.className = 'fixed inset-0 z-[71] pointer-events-none'; c.setAttribute('aria-hidden', 'true');
+  c.width = W * d; c.height = H * d; c.style.width = W + 'px'; c.style.height = H + 'px';
+  document.body.appendChild(c);
+  const x = c.getContext('2d'); x.scale(d, d);
+  const parts = [];
+  // dois canhões nos cantos de baixo e uma chuva do alto
+  const burst = (ox, oy, angle, spread, n, speed) => {
+    for(let i = 0; i < n; i++){
+      const a = angle + (Math.random() - .5) * spread, v = speed * (.55 + Math.random() * .6), r = Math.random();
+      parts.push({x:ox, y:oy, vx:Math.cos(a) * v, vy:Math.sin(a) * v, w:6 + Math.random() * 7, h:4 + Math.random() * 6, rot:Math.random() * 6, vr:(Math.random() - .5) * .35,
+        c:PARTY_COLORS[i % PARTY_COLORS.length], shape:r < .16 ? 'circle' : r < .3 ? 'leaf' : 'rect', wob:Math.random() * 10});
+    }
+  };
+  const k = Math.round(70 * power), speed = Math.min(26, Math.max(17, H / 34));
+  burst(0, H + 10, -Math.PI / 3.1, .8, k, speed);
+  burst(W, H + 10, -Math.PI + Math.PI / 3.1, .8, k, speed);
+  burst(W / 2, -20, Math.PI / 2, 2.6, Math.round(k * .6), 6);
+  const t0 = performance.now();
+  const step = now => {
+    const t = now - t0, fade = Math.max(0, 1 - Math.max(0, t - 2700) / 900);
+    x.clearRect(0, 0, W, H);
+    parts.forEach(p => {
+      p.vy += .3; p.vx *= .985; p.vy *= .985;
+      p.x += p.vx + Math.sin(t / 170 + p.wob) * .7; p.y += p.vy; p.rot += p.vr;
+      x.save(); x.translate(p.x, p.y); x.rotate(p.rot); x.globalAlpha = fade; x.fillStyle = p.c;
+      if(p.shape === 'circle'){ x.beginPath(); x.arc(0, 0, p.h * .55, 0, Math.PI * 2); x.fill(); }
+      else if(p.shape === 'leaf'){ x.beginPath(); x.ellipse(0, 0, p.w * .75, p.h * .45, 0, 0, Math.PI * 2); x.fill(); }
+      else x.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.max(.2, Math.abs(Math.cos(p.rot * 2))));   // gira como papel
+      x.restore();
+    });
+    if(t < 3600) requestAnimationFrame(step); else c.remove();
+  };
+  requestAnimationFrame(step);
+}
+let partyAudio = null;
+// "big": estouro do confete + fanfarra subindo + acorde final com brilhinhos; senão, só um arpejo curto
+function partySound(big = true){
+  if(!SETTINGS.sons) return;
+  try{
+    partyAudio = partyAudio || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = partyAudio; if(ac.state === 'suspended') ac.resume();
+    const t = ac.currentTime + .03, out = ac.createGain();
+    out.gain.value = .2; out.connect(ac.destination);
+    const note = (freq, at, dur, type = 'triangle', vol = .5) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + .015); g.gain.exponentialRampToValueAtTime(.001, at + dur);
+      o.connect(g); g.connect(out); o.start(at); o.stop(at + dur + .05);
+    };
+    if(big){
+      const len = Math.round(ac.sampleRate * .2), buf = ac.createBuffer(1, len, ac.sampleRate), data = buf.getChannelData(0);
+      for(let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+      [0, .1].forEach(dt => {
+        const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+        n.buffer = buf; f.type = 'bandpass'; f.frequency.value = 1700; f.Q.value = .8; g.gain.value = 1.1;
+        n.connect(f); f.connect(g); g.connect(out); n.start(t + dt);
+      });
+    }
+    const s = big ? .14 : 0;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => note(f, t + s + i * .085, .24));
+    if(big){
+      [523.25, 659.25, 783.99, 1046.5].forEach(f => { note(f, t + .52, 1.1, 'triangle', .26); note(f / 2, t + .52, 1.1, 'sine', .12); });
+      for(let i = 0; i < 7; i++) note(1568 + Math.random() * 1300, t + .6 + i * .075, .2, 'sine', .1);
+    }
+  }catch(err){}
+}
+// as conquistas que chegam juntas (ou enquanto um cartão está aberto) aparecem num cartão só
+const celebrateQueue = [];
+let celebrating = false, celebrateTimer = null;
+function celebrateAchievement(a){
+  celebrateQueue.push(a);
+  if(!celebrating){ clearTimeout(celebrateTimer); celebrateTimer = setTimeout(nextCelebration, 450); }
+}
+function nextCelebration(){
+  if(!celebrateQueue.length){ celebrating = false; return; }
+  celebrating = true;
+  showAchievementCard(celebrateQueue.splice(0));
+}
+function showAchievementCard(list){
+  const a = list[0], many = list.length > 1, back = document.activeElement, phrase = CELEBRATE[quickHash(a.id) % CELEBRATE.length];
+  const o = document.createElement('div');
+  o.className = 'ach-fade fixed inset-0 z-[70] bg-[#1E2A1B]/45 p-4 overflow-y-auto flex';
+  o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'ach-title');
+  const soundIco = () => SETTINGS.sons ? '🔊' : '🔇';
+  o.innerHTML = `<div class="ach-pop relative w-full max-w-[400px] m-auto rounded-[26px] bg-paper shadow-window px-7 pt-7 pb-6 text-center overflow-hidden">
+      <div class="absolute left-1/2 top-[112px] -translate-x-1/2 -translate-y-1/2 w-[480px] h-[480px] pointer-events-none" aria-hidden="true"><div class="ach-rays w-full h-full"></div></div>
+      <button type="button" data-ach="som" class="absolute top-3 right-3 w-9 h-9 rounded-full grid place-items-center text-[17px] hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="${SETTINGS.sons ? 'Desligar' : 'Ligar'} os sons de comemoração" title="Sons de comemoração">${soundIco()}</button>
+      <p class="relative text-[13.5px] font-bold text-forest-500">${many ? 'Conquistas desbloqueadas!' : 'Conquista desbloqueada!'}</p>
+      <div class="ach-badge relative mx-auto mt-4 w-28 h-28 rounded-full grid place-items-center text-[56px] leading-none" style="background:radial-gradient(circle at 35% 30%,#FFF6DA,#F4BC4E 68%,#E2962E)" aria-hidden="true">${many ? '🏆' : a.icon}${many ? `<span class="absolute -top-1 -right-1 w-9 h-9 rounded-full bg-forest-700 text-[#F3F1E6] grid place-items-center text-[16px] font-extrabold ring-4 ring-paper">${list.length}</span>` : ''}</div>
+      <h2 id="ach-title" class="relative mt-5 text-[26px] font-extrabold tracking-tight leading-tight">${many ? `Você desbloqueou ${list.length} conquistas!` : esc(a.title)}</h2>
+      ${many ? `<ul class="relative mt-3 max-h-[190px] overflow-y-auto thin-scroll space-y-1.5 text-left">${list.map(x => `<li class="flex items-center gap-3 rounded-xl bg-cream border border-line px-3 py-2"><span class="text-[24px] leading-none" aria-hidden="true">${x.icon}</span><span class="min-w-0"><b class="block text-[14.5px]">${esc(x.title)}</b><span class="block text-[12.5px] text-ink-2">${esc(x.desc)}</span></span></li>`).join('')}</ul>`
+        : `<p class="relative mt-1 text-[15px] text-ink-2">${esc(a.desc)}</p>`}
+      ${a.id === 'demo' ? '' : `<p class="relative mt-3 inline-block rounded-full bg-forest-100 text-forest-700 px-3 py-1 text-[14px] font-bold">+${XP.conquista * list.length} XP</p>`}
+      <div class="relative mt-4 flex items-end justify-center gap-1">
+        <svg class="capy-float w-[78px] h-auto aspect-[172/160] shrink-0" aria-hidden="true"><use href="#capy-happy"/></svg>
+        <p class="mb-4 max-w-[210px] rounded-2xl rounded-bl-md bg-cream border border-line px-3 py-2 text-left text-[14px] leading-snug">${esc(phrase)}</p>
+      </div>
+      <div class="relative mt-4 flex flex-wrap justify-center gap-2">
+        <button type="button" data-ach="ok" class="${btnPrimary}">Uhul! 🎉</button>
+        <button type="button" data-ach="ver" class="${btnSoft}">Ver conquistas</button>
+      </div>
+    </div>`;
+  document.body.appendChild(o);
+  let closed = false;
+  const close = () => {
+    if(closed) return; closed = true;
+    clearTimeout(auto); document.removeEventListener('keydown', onKey);
+    o.remove(); if(back && back.focus) back.focus();
+    setTimeout(nextCelebration, 350);
+  };
+  const onKey = e => { if(e.key === 'Escape') close(); };
+  // fecha sozinho depois de 15 s, a não ser que a pessoa esteja com o mouse ou o dedo no cartão
+  const auto = setTimeout(close, 15000);
+  o.firstElementChild.addEventListener('pointerenter', () => clearTimeout(auto));
+  document.addEventListener('keydown', onKey);
+  o.addEventListener('click', e => {
+    const b = e.target.closest('[data-ach]');
+    if(!b){ if(e.target === o) close(); return; }
+    if(b.dataset.ach === 'som'){
+      SETTINGS.sons = !SETTINGS.sons; saveSettings();
+      b.textContent = soundIco(); b.setAttribute('aria-label', `${SETTINGS.sons ? 'Desligar' : 'Ligar'} os sons de comemoração`);
+      if(SETTINGS.sons) partySound(false);
+      return;
+    }
+    if(b.dataset.ach === 'ver'){ celebrateQueue.length = 0; location.hash = 'conquistas'; }
+    close();
+  });
+  o.querySelector('[data-ach="ok"]').focus();
+  confetti(); partySound(true);
+}
+// subir de nível também merece festa (menor, sem o cartão)
+function celebrateLevel(){ confetti(.6); partySound(false); }
+
 const ACHIEVEMENTS = [
   {id:'primeiro_passo', icon:'🌱', title:'Primeiro Passo', desc:'Abriu o Zen Estudos pela primeira vez', check:() => true},
   {id:'streak_3',  icon:'🔥', title:'Pegando o Ritmo', desc:'3 dias seguidos de estudo', prog:() => [STATS.streak, 3]},
@@ -1733,7 +1895,7 @@ function checkAchievements(){
   ACHIEVEMENTS.forEach(a => {
     if(STATS.achievements[a.id] || !achDone(a)) return;
     STATS.achievements[a.id] = Date.now(); saveStats();
-    if(a.id !== 'primeiro_passo') setTimeout(() => toast(`${a.icon} Conquista: ${a.title}! ${CELEBRATE[quickHash(a.id) % CELEBRATE.length]}`), 400);
+    if(a.id !== 'primeiro_passo') setTimeout(() => celebrateAchievement(a), 400);
     addXP(XP.conquista, 'conquista');
   });
 }
