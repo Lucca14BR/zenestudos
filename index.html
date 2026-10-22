@@ -119,6 +119,12 @@
   .capy-float { animation: capyFloat 4.5s ease-in-out infinite; }
   @keyframes capyFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
   @media (prefers-reduced-motion: reduce) { .capy-float { animation:none; } }
+  /* reação do duelo: o emoji sobe e some em cima do avatar */
+  .du-bubble { position:absolute; top:-18px; left:22px; font-size:26px; opacity:0; pointer-events:none; }
+  .du-bubble.du-right { left:auto; right:22px; }
+  .du-pop { animation: duPop 1.6s ease-out; }
+  @keyframes duPop { 0% { opacity:0; transform:translateY(8px) scale(.6); } 15% { opacity:1; transform:translateY(0) scale(1.15); } 80% { opacity:1; } 100% { opacity:0; transform:translateY(-14px); } }
+  @media (prefers-reduced-motion: reduce) { .du-pop { animation:duFade 1.6s linear; } @keyframes duFade { 0%, 80% { opacity:1; } 100% { opacity:0; } } }
   /* Respostas do Zen (markdown já convertido) */
   .zen-md { font-size:15.5px; line-height:1.65; overflow-wrap:anywhere; }
   .zen-md > * + * { margin-top:.55em; }
@@ -546,7 +552,16 @@
               <button id="wb-del" type="button" class="text-[#B4472F] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Apagar</button>
             </div>
           </div>
-          <div id="wb-live" class="mt-4 rounded-2xl bg-paper border border-line shadow-card px-5 py-4"></div>
+          <div id="wb-live-card" class="mt-4 rounded-2xl bg-paper border border-line shadow-card px-5 py-4 grid gap-4 items-start">
+            <div id="wb-live" class="min-w-0"></div>
+            <section id="wb-chat" class="hidden min-w-0 rounded-xl bg-cream border border-line" aria-label="Conversa da dupla">
+              <div id="wb-chat-log" class="h-[150px] overflow-y-auto thin-scroll px-3 py-2 space-y-1.5 text-[14px]" aria-live="polite"></div>
+              <form id="wb-chat-form" class="flex items-center gap-2 border-t border-line p-1.5 pl-3" autocomplete="off">
+                <label class="flex-1 min-w-0"><span class="sr-only">Mensagem para a dupla</span><input id="wb-chat-in" maxlength="500" class="w-full bg-transparent py-1.5 text-[14px] placeholder:text-muted focus:outline-none" placeholder="Mensagem..."></label>
+                <button class="rounded-lg bg-forest-700 hover:bg-forest-900 text-[#F3F1E6] px-3 py-1.5 text-[13.5px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-amber">Enviar</button>
+              </form>
+            </section>
+          </div>
 
           <div id="wb-layout" class="mt-4 grid grid-cols-1 gap-5 items-start">
             <div class="min-w-0">
@@ -1529,6 +1544,7 @@ const STATS_DEFAULT = {streak:0, bestStreak:0, lastActiveDate:null, studyLog:{},
   visitCount:0, lastVisitAt:0, prevVisitAt:0, freezes:0, freezeXP:0, freezeUsed:null, missions:null, missionDays:0,
   dailyReviewDate:null, dailyReviewsDone:0, rankHistory:[], toolUses:0, madeLog:{}, achievements:{}, essays:0, aulas:0};
 const STATS = Object.assign({}, STATS_DEFAULT, store.get('stats', {}));
+STATS.duels = Object.assign({played:0, wins:0, losses:0, draws:0, history:[], series:{played:0, won:0}}, STATS.duels);
 const saveStats = debounce(() => store.set('stats', STATS), 250);
 // dados usados por várias telas (definidos cedo para todas enxergarem)
 let currentScreen = 'inicio';
@@ -1706,7 +1722,10 @@ const ACHIEVEMENTS = [
   {id:'congelado', icon:'🧊', title:'Salvo pelo Gelo', desc:'Um congelamento salvou a sua sequência', check:() => !!STATS.freezeUsed},
   {id:'campeao_semana', icon:'👑', title:'Campeão da Semana', desc:`Ganhou a semana contra o ${FRIEND.nome}`, check:() => STATS.rankHistory.some(r => r.winner === 'me')},
   {id:'boletim_1', icon:'📒', title:'Boletim em Dia', desc:'Lançou a primeira nota no boletim', check:() => Object.values(bl.grades).some(g => g.some(v => v !== null))},
-  {id:'catalogo_5', icon:'🍿', title:'Maratona de Aulas', desc:'Assistiu a 5 videoaulas', prog:() => [Object.keys(vSeen).length, 5]}
+  {id:'catalogo_5', icon:'🍿', title:'Maratona de Aulas', desc:'Assistiu a 5 videoaulas', prog:() => [Object.keys(vSeen).length, 5]},
+  {id:'duelo_1',   icon:'⚔️', title:'Primeiro Duelo', desc:`Fez um duelo ao vivo com o ${FRIEND.nome}`, prog:() => [(STATS.duels || {}).played || 0, 1]},
+  {id:'duelo_5',   icon:'🥇', title:'Duelista', desc:'Venceu 5 duelos', prog:() => [(STATS.duels || {}).wins || 0, 5]},
+  {id:'torneio_1', icon:'🏆', title:'Campeão do Torneio', desc:'Ganhou um torneio de duelos', prog:() => [((STATS.duels || {}).series || {}).won || 0, 1]}
 ];
 const achDone = a => { try{ return a.check ? a.check() : a.prog()[0] >= a.prog()[1]; }catch(err){ return false; } };
 const CELEBRATE = ['A capivara tá orgulhosa de você!', 'Isso merece um banho de rio! 🌊', `Mandou muito, ${ME.nome}!`, 'Mais uma pra coleção!', 'Tô até dançando aqui! 🦫'];
@@ -2527,7 +2546,9 @@ function renderSimEmpty(){
     <ul class="mt-3 rounded-2xl bg-paper border border-line shadow-card divide-y divide-line overflow-hidden">${last.map(a => `<li class="flex items-center gap-4 px-5 py-3.5">
       <span class="w-12 text-[18px] font-extrabold tabular-nums ${a.score / a.total >= .6 ? 'text-forest-500' : 'text-[#B4472F]'}">${Math.round(a.score / a.total * 100)}%</span>
       <span class="flex-1 min-w-0"><span class="block font-semibold text-[15px] truncate">${esc(a.titulo || 'Simulado')}</span><span class="block text-[13px] text-muted">${a.score} de ${a.total} certas, ${fmtDate(keyDate(a.d))}</span></span>
-    </li>`).join('')}</ul>` : ''}`;
+    </li>`).join('')}</ul>` : ''}
+    <div id="duel-card" class="mt-5"></div>`;
+  try{ renderDuelCard(); }catch(err){}
 }
 function renderSim(){
   if(!hasSim()) return renderSimEmpty();
@@ -2582,8 +2603,10 @@ function renderSimResult(){
           </summary>
           <div class="zen-md mt-3 pl-10 text-ink-2">${md(q.explicacao || '')}</div>
         </details></li>`; }).join('')}
-    </ol>`;
+    </ol>
+    <div id="duel-card" class="mt-5"></div>`;
   renderMath(document.getElementById('sim-result'));
+  try{ renderDuelCard(); }catch(err){}
 }
 function paintSimTimer(){
   const h = Math.floor(sim.left / 3600), m = Math.floor(sim.left % 3600 / 60), s = sim.left % 60;
@@ -4010,7 +4033,7 @@ document.getElementById('wb-ask').addEventListener('submit', e => {
 // e a mesma sala da dupla. O canal é outro ("teste1"), para esta versão não se misturar com o quadro do index.html.
 const SALA_DA_DUPLA = 'rfpy5fn84ex3x7rr';
 const LIVE_NS = 'zenestudos/teste1';
-const LIVE_VERSION = 2;                         // as duas cópias do teste precisam ser da mesma versão
+const LIVE_VERSION = 3;                         // as duas cópias do teste precisam ser da mesma versão
 const MQTT_LIB = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
 const LIVE_BROKERS = [
   {name:'HiveMQ',    url:'wss://broker.hivemq.com:8884/mqtt'},
@@ -4040,7 +4063,7 @@ async function netStart(){
   if(!USER) return null;                         // só conecta depois de escolher o perfil
   try{ await loadMqtt(); }catch(err){ return null; }
   if(liveNet) return liveNet;
-  liveNet = {clients:[], subs:new Set([`${LIVE_NS}/${SALA_DA_DUPLA}/who/+`]), seen:new Map(), src:'s_' + wbId()};
+  liveNet = {clients:[], subs:new Set([`${LIVE_NS}/${SALA_DA_DUPLA}/who/+`, duelInbox(ME.id)]), seen:new Map(), src:'s_' + wbId()};
   LIVE_BROKERS.forEach(br => {
     let c;
     try{
@@ -4117,6 +4140,7 @@ function onNetMessage(topic, payload){
   if(!d || !d.mid || liveNet.seen.has(d.mid)) return;
   liveNet.seen.set(d.mid, Date.now());
   if(liveNet.seen.size > 4000){ const cut = Date.now() - 120000; liveNet.seen.forEach((t, k) => { if(t < cut) liveNet.seen.delete(k); }); }
+  if(topic.includes('/duel/')){ if(d.src !== liveNet.src) onDuelMessage(d); return; }   // desafios de duelo
   if(d.src === liveNet.src || !live || d.share !== live.share) return;
   if(d.v !== LIVE_VERSION){ if(!live.warned){ live.warned = true; toast('O app do seu amigo está numa versão diferente do teste. Usem o mesmo arquivo nos dois computadores.'); } return; }
   onLiveData(d);
@@ -4147,7 +4171,8 @@ function liveProgress(){   // o amigo vê o traço enquanto você desenha
 async function beginLive(share, boardId, role){
   if(!await netStart()){ toast('Não deu para carregar a conexão ao vivo. Confira a internet.'); return false; }
   if(live) stopLive(true);
-  live = {share, boardId, role, partners:{}, gotState:false};
+  live = {share, boardId, role, partners:{}, gotState:false, chat:[]};
+  renderLiveChat();
   BOARDS.forEach(x => { x.live = x.id === boardId; }); saveBoards();   // só um quadro fica ao vivo por vez
   netSubscribe(boardTopic(share));
   publishWho();
@@ -4184,7 +4209,7 @@ function stopLive(silent){
   if(!live) return;
   const l = live;
   try{ livePublish({type:'bye'}); }catch(err){}
-  live = null; wb.remote = {};
+  live = null; wb.remote = {}; renderLiveChat();
   netUnsubscribe(boardTopic(l.share));
   publishWho();
   if(!silent) toast('Você saiu do quadro ao vivo. O desenho continua salvo.');
@@ -4241,6 +4266,7 @@ function onLiveData(d){
       break;
     case 'progress': if(here && okItem(d.item)){ wb.remote[d.item.id] = {item:d.item, at:Date.now()}; wbRender(); } break;
     case 'bye': delete live.partners[d.src]; if(d.me) toast(`${d.me.avatar} ${d.me.nome} saiu do quadro.`); renderLive(); break;
+    case 'chat': if(d.me) onLiveChat(d); break;
   }
 }
 
@@ -4248,6 +4274,10 @@ function onLiveData(d){
 function renderLive(){
   const box = document.getElementById('wb-live'); if(!box) return;
   const here = live && live.boardId === wbBoard.id, online = liveOnline();
+  // a conversa da dupla aparece ao lado quando o quadro aberto está ao vivo
+  document.getElementById('wb-chat').classList.toggle('hidden', !here);
+  document.getElementById('wb-live-card').classList.toggle('md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]', !!here);
+  try{ renderDuelCard(); }catch(err){}   // o duelo carrega mais abaixo no arquivo
   const share = document.getElementById('wb-share');
   if(!share.disabled) share.querySelector('span').textContent = here ? 'Ao vivo' : 'Estudar junto';
   share.classList.toggle('ring-2', !!here); share.classList.toggle('ring-[#5FBF4A]', !!here);
@@ -4260,6 +4290,7 @@ function renderLive(){
         ${f.v !== LIVE_VERSION ? '<span class="text-muted">com outra versão do teste</span>'
           : f.board ? `<span class="text-ink-2">no quadro <b>${esc(f.board.nome)}</b></span>${live && live.share === f.board.share ? '<span class="text-forest-700 font-semibold">estudando junto com você</span>' : `<button type="button" data-live-join="${esc(f.board.share)}" data-title="${esc(f.board.nome)}" data-who="${esc(f.me.nome || '')}" class="rounded-lg bg-forest-700 hover:bg-forest-900 text-[#F3F1E6] px-3 py-1 text-[13.5px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-amber">Entrar</button>`}`
           : '<span class="text-muted">ainda sem quadro ao vivo</span>'}
+        ${f.me.pid === FRIEND.id && f.v === LIVE_VERSION ? '<button type="button" data-duel="go" class="font-semibold text-forest-700 hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">⚔️ Desafiar para um duelo</button>' : ''}
       </div>`;
   let body;
   if(here){
@@ -4383,6 +4414,488 @@ if(USER) setTimeout(() => netStart().then(n => {
   const b = n && !live && BOARDS.find(x => x.live && x.share);
   if(b) beginLive(b.share, b.id, b.guest ? 'guest' : 'host');
 }), 1500);
+
+// ---------- Conversa da dupla no quadro ao vivo ----------
+// Vale enquanto os dois estão no mesmo quadro ao vivo (como no original, não fica guardada)
+document.getElementById('wb-chat-in').placeholder = `Mensagem para o ${FRIEND.nome}...`;
+function renderLiveChat(){
+  const log = document.getElementById('wb-chat-log');
+  const list = live ? live.chat : [];
+  log.innerHTML = list.length ? list.map(m => `<p class="${m.mine ? 'text-right' : ''}"><span class="inline-block max-w-[92%] text-left rounded-xl px-2.5 py-1.5 ${m.mine ? 'bg-forest-100 text-forest-900' : 'bg-paper border border-line'}"><b class="text-[12.5px]">${esc(m.avatar)} ${esc(m.nome)}</b> ${esc(m.text)}</span></p>`).join('')
+    : '<p class="text-[13px] text-muted">Mandem mensagens por aqui enquanto desenham.</p>';
+  log.scrollTop = log.scrollHeight;
+}
+function onLiveChat(d){
+  const text = String(d.text || '').slice(0, 500).trim(); if(!text) return;
+  const m = {nome:String(d.me.nome || 'Amigo').slice(0, 30), avatar:String(d.me.avatar || '🙂').slice(0, 4), text, mine:false};
+  live.chat.push(m); if(live.chat.length > 200) live.chat.shift();
+  renderLiveChat();
+  if(currentScreen !== 'quadro' || live.boardId !== wbBoard.id || document.hidden) toast(`${m.avatar} ${m.nome}: ${text.slice(0, 120)}`);
+}
+document.getElementById('wb-chat-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = document.getElementById('wb-chat-in'), text = inp.value.trim();
+  if(!text || !live) return;
+  live.chat.push({nome:ME.nome, avatar:PROFILE_AVATAR[ME.id], text, mine:true});
+  livePublish({type:'chat', text});
+  inp.value = ''; renderLiveChat();
+});
+
+// ---------- Duelo ao vivo (quiz em tempo real entre a dupla) ----------
+// Mesma sala da dupla e mesmos 3 servidores do quadro ao vivo. Quem desafia comanda as rodadas
+// e cada um responde no próprio app. Acertar vale 100 pontos + até 50 de bônus por rapidez.
+let duel = null, duelSeries = null;
+const DUEL_REACTIONS = ['👏', '🔥', '😅', '🤯', '😎', '🦫'];
+const duelInbox = pid => `${LIVE_NS}/${SALA_DA_DUPLA}/duel/${pid}`;
+const shuffled = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+function duelFriend(){
+  const info = Object.values(liveFriends).filter(f => f.me && f.me.pid === FRIEND.id).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+  return {pid:FRIEND.id, nome:FRIEND.nome, avatar:PROFILE_AVATAR[FRIEND.id],
+    online:!!(info && Date.now() - (info.ts || 0) < 180000 && liveOnline()), oldVersion:!!(info && info.v !== LIVE_VERSION)};
+}
+function duelSend(type, extra, toPid){
+  const to = toPid || (duel && duel.opp.pid);
+  if(!liveNet || !to) return 0;
+  return netPublish(duelInbox(to), JSON.stringify(Object.assign({type, v:LIVE_VERSION, mid:wbId(), src:liveNet.src, me:liveMe(), did:duel ? duel.did : null}, extra || {})), {qos:1});
+}
+const duelPoints = (a, q, secs) => a && a.choice === q.certa ? 100 + Math.round(50 * Math.max(0, 1 - a.ms / (secs * 1000))) : 0;
+// questões que chegam pela rede: só texto, com a resposta dentro das alternativas
+const cleanDuelQs = list => (Array.isArray(list) ? list : []).slice(0, 40).map(q => ({
+  q:String((q && q.q) || '').slice(0, 1500), alts:(Array.isArray(q && q.alts) ? q.alts : []).slice(0, 5).map(a => String(a).slice(0, 300)),
+  certa:+(q && q.certa), exp:String((q && q.exp) || '').slice(0, 800), k:subjectOf(q && q.k) ? q.k : 'mat'
+})).filter(q => q.q && q.alts.length >= 2 && Number.isInteger(q.certa) && q.certa >= 0 && q.certa < q.alts.length);
+const toDuelQ = q => ({q:q.q, alts:q.alts.slice(), certa:q.certa, exp:q.exp || '', k:q.k});
+const plural2 = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// cartão do duelo (em Simulados) e botões "Desafiar" espalhados pelo app
+function renderDuelCard(){
+  const box = document.getElementById('duel-card'); if(!box) return;
+  const f = duelFriend(), st = STATS.duels;
+  const status = f.oldVersion ? `O app do ${f.nome} está numa versão diferente do teste. Usem o mesmo arquivo.`
+    : f.online ? `${f.nome} está online. Desafie para um quiz valendo pontos: quem acerta mais rápido ganha.`
+    : `${f.nome} não está online agora. Quando ele abrir o app, o botão libera.`;
+  const html = `<div class="rounded-2xl bg-paper border border-line shadow-card p-5 flex flex-wrap items-center gap-4">
+      <p class="text-[30px] leading-none shrink-0" aria-hidden="true">${PROFILE_AVATAR[ME.id]} <span class="text-[20px] align-middle">⚔️</span> ${f.avatar}</p>
+      <div class="flex-1 min-w-[220px]">
+        <p class="font-bold text-[17px]">Duelo ao vivo com o ${f.nome} <span class="inline-block align-middle w-2 h-2 rounded-full ${f.online ? 'bg-[#5FBF4A]' : 'bg-[#C9C2B2]'}" aria-hidden="true"></span></p>
+        <p class="mt-0.5 text-[14px] text-ink-2">${status}</p>
+        ${st.played ? `<p class="mt-1 text-[13px] text-muted">Seu placar: ${plural2(st.wins, 'vitória', 'vitórias')}, ${plural2(st.draws, 'empate', 'empates')} e ${plural2(st.losses, 'derrota', 'derrotas')}${st.series.played ? `. Torneios: ${st.series.won} de ${st.series.played}` : ''}.</p>` : ''}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" data-duel="go" class="${btnPrimary}" ${f.online && !f.oldVersion ? '' : 'disabled'}>⚔️ Desafiar</button>
+        ${st.history.length ? `<button type="button" data-duel="hist" class="${btnSoft}">Histórico</button>` : ''}
+      </div>
+    </div>`;
+  if(box._html === html) return;
+  box._html = html; box.innerHTML = html;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-duel]'); if(!b) return;
+  if(b.dataset.duel === 'go') openDuelSetup();
+  if(b.dataset.duel === 'hist') openDuelHistory();
+});
+
+function openDuelSetup(){
+  if(duel && duel.phase !== 'end') return showDuelOverlay();
+  const f = duelFriend();
+  if(!f.online) return toast(f.oldVersion ? `O app do ${f.nome} está numa versão diferente do teste. Usem o mesmo arquivo.` : `O ${f.nome} não está online agora. Quando ele abrir o app, dá para desafiar.`);
+  const bank = QUESTIONS.length >= 3;
+  const ks = [...new Set(QUESTIONS.map(q => q.k))].filter(k => subjectOf(k));
+  const srcBtn = (v, l, on) => `<button type="button" data-src="${v}" aria-pressed="${on}" class="rounded-full border px-3.5 py-1.5 text-[14px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${on ? 'bg-forest-700 border-forest-700 text-[#F3F1E6]' : 'bg-paper border-line text-ink-2 hover:bg-sand'}">${l}</button>`;
+  openModal(`${modalHead(`Desafiar o ${f.nome}`)}
+    <form id="ds-form" class="mt-4 space-y-3.5" autocomplete="off">
+      <fieldset><legend class="text-[13.5px] font-semibold text-ink-2">De onde vêm as questões?</legend>
+        <div id="ds-src" class="mt-1.5 flex flex-wrap gap-2">${srcBtn('banco', `Do meu banco (${QUESTIONS.length})`, bank)}${srcBtn('zen', 'O Zen cria sobre um tema', !bank)}</div></fieldset>
+      <label id="ds-banco" class="${bank ? '' : 'hidden'} block text-[13.5px] font-semibold text-ink-2">Matéria<select id="ds-subj" class="${fieldCls} mt-1 font-normal"><option value="">Todas (${QUESTIONS.length})</option>${ks.map(k => `<option value="${k}">${subjectOf(k).nome} (${QUESTIONS.filter(q => q.k === k).length})</option>`).join('')}</select></label>
+      <div id="ds-zen" class="${bank ? 'hidden' : ''} space-y-3">
+        <label class="block text-[13.5px] font-semibold text-ink-2">Tema<input id="ds-tema" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: Revolução Francesa, frações, verbo to be"></label>
+        ${attachHTML('ds-att', 'Ou uma foto do conteúdo: o Zen faz o quiz a partir dela.')}
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <label class="text-[13.5px] font-semibold text-ink-2">Questões<select id="ds-n" class="${fieldCls} mt-1 font-normal"><option>5</option><option selected>10</option><option>15</option></select></label>
+        <label class="text-[13.5px] font-semibold text-ink-2">Tempo<select id="ds-secs" class="${fieldCls} mt-1 font-normal"><option value="15">15 s</option><option value="20" selected>20 s</option><option value="30">30 s</option><option value="45">45 s</option><option value="60">60 s</option></select></label>
+        <label class="text-[13.5px] font-semibold text-ink-2">Formato<select id="ds-best" class="${fieldCls} mt-1 font-normal"><option value="1">Partida única</option><option value="3">Melhor de 3</option><option value="5">Melhor de 5</option></select></label>
+      </div>
+      <p id="ds-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
+      <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="ds-go" class="${btnPrimary}">⚔️ Mandar desafio</button></div>
+    </form>`);
+  let src = bank ? 'banco' : 'zen';
+  const att = bindAttach('ds-att'), st = document.getElementById('ds-status');
+  const bad = t => { st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = t; };
+  document.getElementById('ds-src').addEventListener('click', e => {
+    const b = e.target.closest('[data-src]'); if(!b) return;
+    src = b.dataset.src;
+    document.querySelectorAll('#ds-src [data-src]').forEach(x => {
+      const on = x === b; x.setAttribute('aria-pressed', on);
+      ['bg-forest-700', 'border-forest-700', 'text-[#F3F1E6]'].forEach(c => x.classList.toggle(c, on));
+      ['bg-paper', 'border-line', 'text-ink-2'].forEach(c => x.classList.toggle(c, !on));
+    });
+    document.getElementById('ds-banco').classList.toggle('hidden', src !== 'banco');
+    document.getElementById('ds-zen').classList.toggle('hidden', src !== 'zen');
+  });
+  document.getElementById('ds-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const n = +document.getElementById('ds-n').value, secs = +document.getElementById('ds-secs').value, best = +document.getElementById('ds-best').value;
+    let pool, label;
+    if(src === 'banco'){
+      const k = document.getElementById('ds-subj').value;
+      pool = shuffled(QUESTIONS.filter(q => !k || q.k === k)).map(toDuelQ);
+      if(pool.length < 3) return bad('Precisa de pelo menos 3 questões nessa matéria. Escolha "O Zen cria sobre um tema".');
+      label = k ? subjectOf(k).nome : 'Todas as matérias';
+    } else {
+      const tema = document.getElementById('ds-tema').value.trim();
+      if(!tema && !att.images.length) return bad('Escreva o tema do duelo ou mande uma foto.');
+      const b = document.getElementById('ds-go'); b.disabled = true; b.innerHTML = `${spinner} O Zen está criando as questões...`; st.textContent = '';
+      try{
+        const total = Math.min(40, n * best);
+        const d = await askGeminiJSON(`Crie ${total} questões de múltipla escolha (4 alternativas curtas, só uma correta), de dificuldade variada, sobre "${tema || 'o conteúdo das fotos anexadas'}", para um duelo rápido de quiz entre dois estudantes do ensino médio. Enunciados curtos, que dá para ler em poucos segundos. "correta" é o índice (0 a 3) da correta e "explicacao" explica em uma frase. Fórmulas em LaTeX entre $...$.
+Formato: {"questoes":[{"materia":"...","enunciado":"...","alternativas":["...","...","...","..."],"correta":0,"explicacao":"..."}]}`, zenSystemPrompt(), att.images);
+        pool = sanitizeQuestions(d.questoes || d.questions, {subject:null, tema, dif:'Médio', fonte:'Duelo'}).slice(0, total).map(toDuelQ);
+      }catch(err){ b.disabled = false; b.textContent = '⚔️ Mandar desafio'; return bad(zenErrorText(err)); }
+      b.disabled = false; b.textContent = '⚔️ Mandar desafio';
+      if(pool.length < 3) return bad('O Zen não conseguiu criar questões suficientes. Tente de novo.');
+      label = tema || 'Conteúdo da foto';
+    }
+    closeModal();
+    startDuelSeries({n, secs, best, label}, pool);
+  });
+}
+
+// torneio "melhor de 3/5": quem desafia manda uma partida de cada vez; o placar da série vai junto no convite
+function startDuelSeries(cfg, pool){
+  duelSeries = cfg.best > 1 ? {sid:wbId(), best:cfg.best, host:true, game:0, w:{me:0, op:0}, cfg, pool} : null;
+  if(duelSeries) return nextSeriesGame();
+  sendDuelInvite({n:Math.min(cfg.n, pool.length), secs:cfg.secs, label:cfg.label}, pool.slice(0, cfg.n));
+}
+function nextSeriesGame(){
+  const S = duelSeries; if(!S) return;
+  S.game++;
+  let qs = S.pool.slice((S.game - 1) * S.cfg.n, S.game * S.cfg.n);
+  if(qs.length < 3) qs = shuffled(S.pool).slice(0, S.cfg.n);
+  sendDuelInvite({n:qs.length, secs:S.cfg.secs, label:S.cfg.label, series:{sid:S.sid, best:S.best, game:S.game, w:{[ME.id]:S.w.me, [FRIEND.id]:S.w.op}}}, qs);
+}
+
+// convite
+function sendDuelInvite(settings, qs){
+  const f = duelFriend();
+  if(!f.online || !liveNet){ toast(`Sem conexão com o ${f.nome} agora.`); return; }
+  clearDuelTimers();
+  duel = {did:wbId(), role:'host', opp:{pid:f.pid, nome:f.nome, avatar:f.avatar}, qs, secs:settings.secs, settings, i:-1, phase:'invite',
+    my:{}, op:{}, revealed:{}, picks:{}, scores:{me:0, op:0}, lastSeen:Date.now(), timers:[]};
+  if(!duelSend('invite', {settings, questions:qs})){ toast('Sem conexão com os servidores agora. Tente de novo em instantes.'); duel = null; return; }
+  showDuelOverlay();
+  renderDuelBody(`<div class="text-center py-4">
+    <svg class="capy-float mx-auto w-[110px] h-auto aspect-[172/160]" aria-hidden="true"><use href="#capy-happy"/></svg>
+    <h3 class="mt-3 text-[22px] font-extrabold tracking-tight">Desafio enviado!</h3>
+    <p class="mt-1 text-[15px] text-ink-2">Esperando o ${f.nome} aceitar. ${settings.n} questões de ${settings.secs} s, ${esc(settings.label || '')}.</p>
+    <button type="button" id="du-cancel" class="${btnSoft} mt-4">Cancelar desafio</button></div>`);
+  document.getElementById('du-cancel').addEventListener('click', () => { duelSend('quit'); endDuel(); });
+  duelTimer(() => { if(duel && duel.phase === 'invite'){ toast(`O ${f.nome} não respondeu ao desafio. Ele está com o app aberto?`); endDuel(); } }, 45000);
+}
+function showDuelInvite(d){
+  const s = d.settings || {}, nome = String(d.me.nome || 'Amigo').slice(0, 30), av = String(d.me.avatar || '🙂').slice(0, 4);
+  closeModal();
+  openModal(`<div class="text-center">
+      <p class="text-[44px] leading-none" aria-hidden="true">${esc(av)} <span class="text-[28px] align-middle">⚔️</span> ${PROFILE_AVATAR[ME.id]}</p>
+      <h2 id="modal-title" class="mt-3 text-[22px] font-extrabold tracking-tight">${esc(nome)} te desafiou!</h2>
+      ${s.series ? `<p class="mt-2 inline-block rounded-full bg-[#FBEBC6] text-[#8A5A12] px-3 py-1 text-[13.5px] font-semibold">🏆 Torneio, melhor de ${+s.series.best || 3}: partida ${+s.series.game || 1}</p>` : ''}
+      <p class="mt-2 text-[15px] text-ink-2">${+s.n || '?'} questões${s.label ? ` de <b>${esc(String(s.label).slice(0, 60))}</b>` : ''}, ${+s.secs || 20} s cada. Quem acerta mais rápido faz mais pontos.</p>
+      <div class="mt-5 flex justify-center gap-2"><button type="button" id="di-yes" class="${btnPrimary}">⚔️ Aceitar</button><button type="button" id="di-no" class="${btnSoft}">Agora não</button></div>
+    </div>`);
+  const expire = setTimeout(() => { if(document.getElementById('di-yes')){ closeModal(); toast(`O desafio do ${nome} expirou.`); } }, 40000);
+  document.getElementById('di-no').addEventListener('click', () => { clearTimeout(expire); closeModal(); duelSend('decline', {did:d.did, reason:''}, d.me.pid); });
+  document.getElementById('di-yes').addEventListener('click', () => {
+    clearTimeout(expire); closeModal();
+    const qs = cleanDuelQs(d.questions);
+    if(!qs.length){ duelSend('decline', {did:d.did, reason:'as questões não chegaram'}, d.me.pid); return toast('As questões do desafio não chegaram direito. Peça para ele mandar de novo.'); }
+    clearDuelTimers();
+    duel = {did:d.did, role:'guest', opp:{pid:d.me.pid, nome, avatar:av}, qs, secs:Math.max(5, Math.min(120, +s.secs || 20)), settings:s, i:-1, phase:'accepted',
+      my:{}, op:{}, revealed:{}, picks:{}, scores:{me:0, op:0}, lastSeen:Date.now(), timers:[]};
+    duelSend('accept');
+    showDuelOverlay();
+    renderDuelBody('<div class="text-center py-6"><svg class="capy-float mx-auto w-[110px] h-auto aspect-[172/160]" aria-hidden="true"><use href="#capy-happy"/></svg><h3 class="mt-3 text-[22px] font-extrabold">Bora!</h3><p class="mt-1 text-ink-2">O duelo vai começar...</p></div>');
+    duelTimer(() => { if(duel && duel.phase === 'accepted'){ toast('O duelo não começou. A conexão pode ter caído.'); endDuel(); } }, 20000);
+  });
+}
+
+// rodadas
+function duelTimer(fn, ms){ const t = setTimeout(fn, ms); if(duel) duel.timers.push(t); return t; }
+function clearDuelTimers(){ if(duel){ duel.timers.forEach(clearTimeout); duel.timers = []; clearInterval(duel.tick); } }
+function duelCountdown(then){
+  duel.phase = 'countdown';
+  let n = 3;
+  const step = () => {
+    if(!duel) return;
+    renderDuelBody(`<p class="py-16 text-center text-[64px] font-extrabold tracking-tight text-forest-700" aria-live="assertive">${n > 0 ? n : 'Valendo!'}</p>`);
+    if(n-- > 0) duelTimer(step, 850); else duelTimer(then, 650);
+  };
+  step();
+}
+function hostNextQuestion(i){
+  if(!duel) return;
+  if(i >= duel.qs.length) return hostEnd();
+  duelSend('q', {i});
+  showDuelQuestion(i);
+  duelTimer(() => hostReveal(i), duel.secs * 1000 + 1500);
+}
+const OPT_BASE = 'du-opt w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[15.5px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400';
+const OPT_STYLE = {idle:'bg-paper border-line hover:border-[#F2C38E] hover:bg-[#FEF7EC]', sel:'bg-[#FDEBD3] border-tangerine', ok:'bg-forest-100 border-forest-500', bad:'bg-[#FBE3DE] border-rust', off:'bg-paper border-line opacity-70'};
+function paintOpt(b, kind){ b.className = `${OPT_BASE} ${OPT_STYLE[kind]}`; }
+function showDuelQuestion(i){
+  if(!duel || !duel.qs[i]) return;
+  clearInterval(duel.tick);
+  duel.i = i; duel.phase = 'q'; duel.qStart = Date.now();
+  const q = duel.qs[i], s = subjectOf(q.k);
+  renderDuelBody(`
+    <div class="flex items-center justify-between gap-3 text-[13.5px] text-ink-2">
+      <span class="rounded-full bg-forest-100 text-forest-700 px-2.5 py-0.5 font-semibold">${s ? s.nome : 'Geral'}</span>
+      <span>Questão ${i + 1} de ${duel.qs.length}</span>
+      <span id="du-secs" class="font-bold tabular-nums text-ink text-[15px]">${duel.secs}s</span>
+    </div>
+    <div class="mt-2 h-2 rounded-full bg-track overflow-hidden"><div id="du-bar" class="h-full rounded-full bg-forest-500" style="width:100%"></div></div>
+    <div class="mt-4 zen-md !text-[17px]">${md(q.q)}</div>
+    <div class="mt-4 grid gap-2">${q.alts.map((a, k) => `<button type="button" data-o="${k}" class="${OPT_BASE} ${OPT_STYLE.idle}"><span class="w-7 h-7 rounded-full border-2 border-[#B5B2A8] grid place-items-center text-[13px] font-bold shrink-0">${'ABCDE'[k]}</span><span class="min-w-0">${esc(a)}</span></button>`).join('')}</div>
+    <div id="du-status" class="mt-3 text-[14px] text-ink-2"></div>`);
+  renderDuelStatus();
+  duel.tick = setInterval(() => {
+    if(!duel || duel.phase !== 'q' || duel.i !== i){ if(duel) clearInterval(duel.tick); return; }
+    const left = Math.max(0, duel.secs * 1000 - (Date.now() - duel.qStart));
+    const bar = document.getElementById('du-bar'), sec = document.getElementById('du-secs');
+    if(bar) bar.style.width = (left / (duel.secs * 1000) * 100) + '%';
+    if(sec){ sec.textContent = Math.ceil(left / 1000) + 's'; sec.classList.toggle('text-[#B4472F]', left < 5000); }
+    if(left <= 0 && !duel.my[i]) duelAnswer(null);
+  }, 100);
+}
+function duelAnswer(choice){
+  if(!duel || duel.phase !== 'q' || duel.my[duel.i]) return;
+  const i = duel.i;
+  duel.my[i] = {choice, ms:Math.min(duel.secs * 1000, Date.now() - duel.qStart)};
+  duelSend('ans', {i, choice, ms:duel.my[i].ms});
+  document.querySelectorAll('#du-body .du-opt').forEach(b => { b.disabled = true; paintOpt(b, +b.dataset.o === choice ? 'sel' : 'off'); });
+  renderDuelStatus();
+  if(duel.role === 'host' && duel.op[i]) hostReveal(i);
+}
+function renderDuelStatus(){
+  const el = document.getElementById('du-status'); if(!el || !duel) return;
+  const i = duel.i, mine = duel.my[i], theirs = duel.op[i];
+  el.textContent = `${mine ? (mine.choice == null ? 'Tempo esgotado!' : 'Resposta enviada.') : 'Escolha uma alternativa.'} ${duel.opp.avatar} ${duel.opp.nome} ${theirs ? 'já respondeu.' : 'está pensando...'}`;
+}
+function hostReveal(i){
+  if(!duel || duel.revealed[i]) return;
+  duel.revealed[i] = true;
+  const q = duel.qs[i], full = {choice:null, ms:duel.secs * 1000}, me = duel.my[i] || full, op = duel.op[i] || full;
+  const pm = duelPoints(me, q, duel.secs), po = duelPoints(op, q, duel.secs);
+  duel.scores.me += pm; duel.scores.op += po;
+  const picks = {[ME.id]:{choice:me.choice, pts:pm}, [duel.opp.pid]:{choice:op.choice, pts:po}};
+  duelSend('reveal', {i, picks, scores:{[ME.id]:duel.scores.me, [duel.opp.pid]:duel.scores.op}});
+  showDuelReveal(i, picks);
+  duelTimer(() => hostNextQuestion(i + 1), 3600);
+}
+function showDuelReveal(i, picks){
+  if(!duel || !duel.qs[i]) return;
+  clearInterval(duel.tick);
+  duel.phase = 'reveal'; duel.picks[i] = picks;
+  const q = duel.qs[i], mine = picks[ME.id] || {}, theirs = picks[duel.opp.pid] || {};
+  document.querySelectorAll('#du-body .du-opt').forEach(b => { const o = +b.dataset.o; b.disabled = true; paintOpt(b, o === q.certa ? 'ok' : o === mine.choice ? 'bad' : 'off'); });
+  const line = (nome, av, p) => `<p class="flex items-center gap-2 text-[14.5px]"><span aria-hidden="true">${esc(av)}</span><b>${esc(nome)}</b>
+    <span class="${p.pts ? 'text-forest-700' : 'text-[#B4472F]'}">${p.choice == null ? 'não respondeu' : `${'ABCDE'[p.choice] || '?'} ${p.pts ? '✓ acertou' : '✗ errou'}`}</span>
+    <span class="ml-auto font-bold tabular-nums">+${+p.pts || 0}</span></p>`;
+  const st = document.getElementById('du-status');
+  if(st){
+    st.outerHTML = `<div id="du-reveal" class="mt-3 rounded-xl bg-cream border border-line px-4 py-3 space-y-1">${line(ME.nome, PROFILE_AVATAR[ME.id], mine)}${line(duel.opp.nome, duel.opp.avatar, theirs)}${q.exp ? `<p class="pt-1 text-[13.5px] text-ink-2">💡 ${esc(q.exp)}</p>` : ''}</div>`;
+    renderMath(document.getElementById('du-reveal'));
+  }
+  updateDuelScores();
+}
+function hostEnd(){ duelSend('end', {scores:{[ME.id]:duel.scores.me, [duel.opp.pid]:duel.scores.op}}); showDuelEnd(false); }
+
+// fim da partida
+function showDuelEnd(aborted){
+  if(!duel) return;
+  clearDuelTimers();
+  const wasPlaying = !['invite', 'accepted'].includes(duel.phase);
+  duel.phase = 'end';
+  const me = duel.scores.me, op = duel.scores.op;
+  const result = aborted ? 'aborted' : me > op ? 'win' : me < op ? 'loss' : 'draw';
+  const xp = {win:40, draw:25, loss:15}[result] || 0;
+  if(!aborted && !duel.recorded){
+    duel.recorded = true;
+    const st = STATS.duels;
+    st.played++; if(result === 'win') st.wins++; else if(result === 'loss') st.losses++; else st.draws++;
+    addXP(xp, 'duelo');
+    logMinutes(Math.max(1, Math.round(duel.qs.length * duel.secs / 60)));
+    afterDuelRecorded(result);
+    saveStats(); scheduleChecks();
+  }
+  if(aborted && !wasPlaying) return endDuel();
+  const picks = Object.values(duel.picks), myHits = picks.filter(p => (p[ME.id] || {}).pts).length, opHits = picks.filter(p => (p[duel.opp.pid] || {}).pts).length;
+  const fresh = duel.qs.filter(q => !QUESTIONS.some(x => x.q === q.q)).length;
+  const title = result === 'win' ? `Você venceu, ${ME.nome}! 🏆` : result === 'loss' ? `${esc(duel.opp.nome)} venceu dessa vez 💪` : result === 'draw' ? 'Empate! 🤝' : 'Duelo interrompido';
+  const ser = duel.settings && duel.settings.series, S = duelSeries;
+  let seriesBox = '', seriesBtn = '';
+  if(ser){
+    if(aborted || !S || S.sid !== ser.sid){ seriesBox = `<p class="rounded-xl bg-sand border border-[#EADFC4] px-4 py-2.5 text-[14px]">🏆 Torneio interrompido (melhor de ${+ser.best}).</p>`; duelSeries = null; }
+    else {
+      const champ = S.over ? (S.champ === 'me' ? `👑 ${ME.nome} é o campeão do torneio! +80 XP` : S.champ === 'op' ? `👑 ${esc(duel.opp.nome)} é o campeão do torneio!` : '🤝 O torneio terminou empatado!') : '';
+      seriesBox = `<div class="rounded-xl bg-[#FBEBC6] text-[#6E4A10] px-4 py-2.5 text-[14px]"><b>🏆 Torneio, melhor de ${S.best}</b>: partida ${S.game}. Placar ${PROFILE_AVATAR[ME.id]} ${S.w.me} × ${S.w.op} ${esc(duel.opp.avatar)}${champ ? `<span class="block mt-1 font-bold">${champ}</span>` : ''}</div>`;
+      seriesBtn = S.over ? `<button type="button" id="du-newseries" class="${btnPrimary}">🏆 Novo torneio</button>`
+        : S.host ? `<button type="button" id="du-next" class="${btnPrimary}">▶ Partida ${S.game + 1}</button>`
+        : `<p class="w-full text-center text-[14px] text-muted">Esperando o ${esc(duel.opp.nome)} começar a partida ${S.game + 1}...</p>`;
+    }
+  }
+  renderDuelBody(`<div class="text-center space-y-4">
+    ${seriesBox}
+    <svg class="capy-float mx-auto w-[100px] h-auto aspect-[172/160]" aria-hidden="true"><use href="#${result === 'loss' || result === 'aborted' ? 'capy-head' : 'capy-happy'}"/></svg>
+    <h2 class="text-[24px] font-extrabold tracking-tight">${title}</h2>
+    <div class="flex items-center justify-center gap-5">
+      <div><p class="text-[14px] text-ink-2">${PROFILE_AVATAR[ME.id]} ${ME.nome}</p><p class="text-[34px] font-extrabold tabular-nums leading-tight">${me}</p><p class="text-[12.5px] text-muted">${myHits} de ${picks.length} acertos</p></div>
+      <span class="text-[22px] text-muted" aria-hidden="true">×</span>
+      <div><p class="text-[14px] text-ink-2">${esc(duel.opp.avatar)} ${esc(duel.opp.nome)}</p><p class="text-[34px] font-extrabold tabular-nums leading-tight">${op}</p><p class="text-[12.5px] text-muted">${opHits} de ${picks.length} acertos</p></div>
+    </div>
+    <p class="text-[14px] text-muted">${aborted ? 'O duelo parou no meio (alguém saiu ou a conexão caiu), então não valeu para o placar.' : `+${xp} XP pela partida.`}</p>
+    <div class="flex flex-wrap justify-center gap-2">
+      ${seriesBtn || (!aborted && duelFriend().online ? `<button type="button" id="du-rematch" class="${btnPrimary}">🔁 Revanche</button>` : '')}
+      ${fresh ? `<button type="button" id="du-save" class="${btnSoft}">Salvar ${fresh === 1 ? 'a questão' : `as ${fresh} questões`} no banco</button>` : ''}
+      <button type="button" id="du-close" class="${btnSoft}">Fechar</button>
+    </div></div>`);
+  updateDuelScores();
+  const on = (id, fn) => { const b = document.getElementById(id); if(b) b.addEventListener('click', fn); };
+  on('du-rematch', () => sendDuelInvite({n:duel.qs.length, secs:duel.secs, label:duel.settings.label}, shuffled(duel.qs)));
+  on('du-next', () => { if(!duelFriend().online) return toast(`O ${duel.opp.nome} saiu. O torneio fica por aqui.`); nextSeriesGame(); });
+  on('du-newseries', () => { endDuel(); duelSeries = null; openDuelSetup(); });
+  on('du-close', endDuel);
+  on('du-save', e => {
+    let id = nextQuestionId();
+    const add = duel.qs.filter(q => !QUESTIONS.some(x => x.q === q.q)).map(q => ({id:id++, k:q.k, tema:duel.settings.label || '', dif:'Médio', fonte:'Duelo', q:q.q, alts:q.alts.slice(), certa:q.certa, exp:q.exp, tabela:null, history:[], at:Date.now()}));
+    QUESTIONS.push(...add); saveQuestions(); scheduleChecks();
+    e.currentTarget.disabled = true; e.currentTarget.textContent = 'Salvas no banco ✓';
+  });
+  renderDuelCard();
+}
+// guarda a partida no histórico e atualiza o torneio
+function afterDuelRecorded(result){
+  const st = STATS.duels, ser = duel.settings && duel.settings.series;
+  const h = {date:Date.now(), opp:duel.opp.nome, oppAvatar:duel.opp.avatar, me:duel.scores.me, op:duel.scores.op, result, label:String(duel.settings.label || '').slice(0, 60), game:ser ? `${ser.game}/${ser.best}` : null};
+  st.history.push(h); if(st.history.length > 60) st.history = st.history.slice(-60);
+  if(!ser) return;
+  if(!duelSeries || duelSeries.sid !== ser.sid) duelSeries = {sid:ser.sid, best:+ser.best || 3, host:false};
+  const S = duelSeries;
+  S.game = +ser.game || 1;
+  S.w = {me:(ser.w || {})[ME.id] || 0, op:(ser.w || {})[duel.opp.pid] || 0};
+  if(result === 'win') S.w.me++; else if(result === 'loss') S.w.op++;
+  const need = Math.ceil(S.best / 2);
+  if(S.w.me >= need || S.w.op >= need || S.game >= S.best + 2){   // empates esticam no máximo 2 partidas
+    S.over = true;
+    S.champ = S.w.me > S.w.op ? 'me' : S.w.op > S.w.me ? 'op' : 'draw';
+    st.series.played++;
+    if(S.champ === 'me'){ st.series.won++; addXP(80, 'duelo'); }
+    h.seriesEnd = S.champ;
+  }
+}
+function endDuel(){
+  clearDuelTimers();
+  duel = null;
+  const o = document.getElementById('duel-overlay'); if(o) o.remove();
+  renderDuelCard();
+}
+function openDuelHistory(){
+  const st = STATS.duels;
+  openModal(`${modalHead('Histórico de duelos')}
+    <p class="mt-1 text-[14px] text-ink-2">${plural2(st.wins, 'vitória', 'vitórias')}, ${plural2(st.draws, 'empate', 'empates')} e ${plural2(st.losses, 'derrota', 'derrotas')}${st.series.played ? `. Torneios ganhos: ${st.series.won} de ${st.series.played}` : ''}.</p>
+    <ul class="mt-4 max-h-[55vh] overflow-y-auto divide-y divide-line rounded-xl border border-line">${st.history.slice().reverse().map(h => `<li class="flex items-center gap-3 px-4 py-3">
+      <span class="text-[20px]" aria-hidden="true">${h.result === 'win' ? '🥇' : h.result === 'loss' ? '🥈' : '🤝'}</span>
+      <span class="flex-1 min-w-0"><b class="tabular-nums">${h.me} × ${h.op}</b> contra ${esc(h.oppAvatar || '')} ${esc(h.opp)}${h.game ? `, torneio ${h.game}` : ''}${h.seriesEnd ? (h.seriesEnd === 'me' ? ', 👑 campeão' : h.seriesEnd === 'op' ? ', torneio perdido' : ', torneio empatado') : ''}<span class="block text-[12.5px] text-muted truncate">${esc(h.label || '')}</span></span>
+      <span class="text-[12.5px] text-muted tabular-nums">${new Date(h.date).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}</span></li>`).join('') || '<li class="px-4 py-3 text-[14px] text-muted">Nenhum duelo ainda.</li>'}</ul>`);
+}
+
+// tela do duelo, por cima do app
+function showDuelOverlay(){
+  let o = document.getElementById('duel-overlay');
+  if(!o){ o = document.createElement('div'); o.id = 'duel-overlay'; o.className = 'fixed inset-0 z-[45] bg-[#1E2A1B]/55 p-4 overflow-y-auto flex'; document.body.appendChild(o); }
+  o.innerHTML = `<div class="w-full max-w-[640px] m-auto rounded-[22px] bg-paper shadow-window" role="dialog" aria-modal="true" aria-label="Duelo com o ${esc(duel.opp.nome)}">
+    <div class="flex items-center gap-3 px-5 sm:px-6 py-4 border-b border-line">
+      <div class="relative flex items-center gap-2.5 flex-1 min-w-0">
+        <span class="w-11 h-11 rounded-full bg-forest-100 grid place-items-center text-[22px] shrink-0" aria-hidden="true">${PROFILE_AVATAR[ME.id]}</span>
+        <div class="min-w-0"><b class="block text-[14.5px] truncate">${ME.nome}</b><span id="du-sme" class="text-[22px] font-extrabold tabular-nums leading-none">0</span></div>
+        <span id="du-bubble-me" class="du-bubble" aria-hidden="true"></span>
+      </div>
+      <span class="text-[22px]" aria-hidden="true">⚔️</span>
+      <div class="relative flex items-center gap-2.5 flex-1 min-w-0 justify-end text-right">
+        <div class="min-w-0"><b class="block text-[14.5px] truncate">${esc(duel.opp.nome)}</b><span id="du-sop" class="text-[22px] font-extrabold tabular-nums leading-none">0</span></div>
+        <span class="w-11 h-11 rounded-full bg-[#F8E7CF] grid place-items-center text-[22px] shrink-0" aria-hidden="true">${esc(duel.opp.avatar)}</span>
+        <span id="du-bubble-op" class="du-bubble du-right" aria-hidden="true"></span>
+      </div>
+    </div>
+    <div id="du-body" class="px-5 sm:px-6 py-5 min-h-[260px]"></div>
+    <div class="flex flex-wrap items-center gap-1 px-4 sm:px-5 py-3 border-t border-line">
+      ${DUEL_REACTIONS.map(r => `<button type="button" data-react="${r}" class="w-9 h-9 rounded-full grid place-items-center text-[19px] hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Mandar ${r}">${r}</button>`).join('')}
+      <button type="button" id="du-quit" class="ml-auto rounded px-2 py-1 text-[13.5px] font-semibold text-[#B4472F] hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">Sair do duelo</button>
+    </div></div>`;
+  o.onclick = e => {
+    const opt = e.target.closest('.du-opt'); if(opt && !opt.disabled) return duelAnswer(+opt.dataset.o);
+    const r = e.target.closest('[data-react]'); if(r){ duelSend('react', {emoji:r.dataset.react}); return showDuelReaction(r.dataset.react, false); }
+    if(e.target.closest('#du-quit')){
+      if(!duel || duel.phase === 'end') return endDuel();
+      if(!confirm('Sair do duelo? Ele não vai valer para o placar.')) return;
+      duelSend('quit'); showDuelEnd(true);
+    }
+  };
+  updateDuelScores();
+}
+function renderDuelBody(html){ const b = document.getElementById('du-body'); if(b){ b.innerHTML = html; renderMath(b); } }
+function updateDuelScores(){
+  if(!duel) return;
+  const a = document.getElementById('du-sme'), b = document.getElementById('du-sop');
+  if(a) a.textContent = duel.scores.me; if(b) b.textContent = duel.scores.op;
+}
+function showDuelReaction(emoji, fromOp){
+  const el = document.getElementById(fromOp ? 'du-bubble-op' : 'du-bubble-me');
+  if(!el || !DUEL_REACTIONS.includes(emoji)) return;
+  el.textContent = emoji; el.classList.remove('du-pop'); void el.offsetWidth; el.classList.add('du-pop');
+}
+
+// mensagens do duelo que chegam pela rede
+function onDuelMessage(d){
+  if(!d || d.v !== LIVE_VERSION || !d.me || d.me.pid !== FRIEND.id) return;
+  if(d.type === 'invite'){
+    if(duel && duel.phase !== 'end'){ duelSend('decline', {did:d.did, reason:'já estava num duelo'}, d.me.pid); return; }
+    if(currentScreen === 'simulados' && hasSim() && !sim.finished){
+      duelSend('decline', {did:d.did, reason:'estava fazendo um simulado'}, d.me.pid);
+      return toast(`${d.me.avatar} ${d.me.nome} te desafiou para um duelo, mas você está num simulado. Depois desafie ele de volta!`);
+    }
+    if(duel) endDuel();
+    return showDuelInvite(d);
+  }
+  if(!duel || d.did !== duel.did) return;
+  duel.lastSeen = Date.now();
+  switch(d.type){
+    case 'accept': if(duel.role === 'host' && duel.phase === 'invite'){ clearDuelTimers(); duelSend('start'); duelCountdown(() => hostNextQuestion(0)); } break;
+    case 'decline': toast(`O ${duel.opp.nome} não quis duelar agora${d.reason ? ` (${String(d.reason).slice(0, 60)})` : ''}.`); endDuel(); break;
+    case 'start': if(duel.role === 'guest'){ clearDuelTimers(); duelCountdown(() => {}); } break;
+    case 'q': if(duel.role === 'guest' && Number.isInteger(d.i)) showDuelQuestion(d.i); break;
+    case 'ans':
+      if(!Number.isInteger(d.i)) break;
+      duel.op[d.i] = {choice:Number.isInteger(d.choice) ? d.choice : null, ms:Math.max(0, +d.ms || 0)};
+      if(duel.i === d.i && duel.phase === 'q') renderDuelStatus();
+      if(duel.role === 'host' && duel.my[d.i]) hostReveal(d.i);
+      break;
+    case 'reveal':
+      if(duel.role !== 'guest' || !d.scores || !d.picks) break;
+      duel.revealed[d.i] = true;
+      duel.scores = {me:+d.scores[ME.id] || 0, op:+d.scores[duel.opp.pid] || 0};
+      showDuelReveal(d.i, d.picks); break;
+    case 'end': if(duel.role === 'guest' && d.scores){ duel.scores = {me:+d.scores[ME.id] || 0, op:+d.scores[duel.opp.pid] || 0}; showDuelEnd(false); } break;
+    case 'react': showDuelReaction(d.emoji, true); break;
+    case 'quit': toast(`O ${duel.opp.nome} saiu do duelo.`); showDuelEnd(true); break;
+  }
+}
+// sinal de vida durante o duelo; se o outro sumir por 30 s, encerra sem valer
+setInterval(() => {
+  if(!duel || ['end', 'invite'].includes(duel.phase)) return;
+  duelSend('ping');
+  if(Date.now() - duel.lastSeen > 30000){ toast(`A conexão com o ${duel.opp.nome} caiu.`); showDuelEnd(true); }
+}, 8000);
+renderDuelCard();
 
 // ---------- Arquivos ----------
 // Os arquivos ficam no IndexedDB deste navegador (aguenta PDFs e fotos grandes), um banco por perfil
@@ -4992,6 +5505,7 @@ function renderHome(){
         <thead><tr class="text-[12.5px] text-muted"><th class="text-left font-semibold"></th><th class="py-1 text-right font-semibold">${ME.nome}</th><th class="py-1 text-right font-semibold">${FRIEND.nome}</th></tr></thead>
         <tbody>${rankRow('Minutos', meR.min, op.min)}${rankRow('Acertos', meR.ok, op.ok)}${rankRow('Dias', meR.days, op.days)}</tbody>
       </table>
+      <button type="button" data-duel="go" class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-cream px-4 py-2.5 text-[14.5px] font-semibold hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">⚔️ Desafiar o ${FRIEND.nome} para um duelo</button>
       <p class="mt-2 text-[12.5px] text-muted">${fs ? 'Quem fizer mais XP até sábado ganha +50 XP.' : `O ${FRIEND.nome} ainda não apareceu. O ranking junta o perfil dele deste aparelho e o que chega pela conexão ao vivo.`}</p>
     </div>
   </div>
