@@ -5868,15 +5868,55 @@ const hwSheetKey = e => {
   closeHwSheet();
 };
 const hwQ = () => hwCur && hwCur.data && hwCur.data.questoes[hwCur.sel];
+// área [ymin, xmin, ymax, xmax] de 0 a 1000 que o Zen diz para cada questão (descarta caixas sem sentido)
+function hwBox(b){
+  if(!Array.isArray(b) || b.length !== 4 || b.some(v => !isFinite(+v))) return null;
+  const [y0, x0, y1, x1] = b.map(v => Math.max(0, Math.min(1000, Math.round(+v))));
+  const area = (y1 - y0) * (x1 - x0);
+  return y1 > y0 && x1 > x0 && area >= 4000 && area <= 920000 ? [y0, x0, y1, x1] : null;
+}
+// recorta o trecho da questão escolhida (da versão grande da imagem) e guarda enquanto a solução está aberta
+function hwQCrop(e, i){
+  e.crops = e.crops || {};
+  const c = e.crops[i]; if(c) return c === 'busy' || c === 'none' ? null : c;
+  const Q = e.data.questoes[i], src = Q && e.imgs[Q.imagem - 1];
+  if(!src || !Q.caixa) return null;
+  e.crops[i] = 'busy';
+  const im = new Image();
+  im.onload = () => {
+    const [y0, x0, y1, x1] = Q.caixa, W = im.naturalWidth, H = im.naturalHeight, pad = .025;
+    const x = Math.max(0, (x0 / 1000 - pad) * W), y = Math.max(0, (y0 / 1000 - pad) * H);
+    const w = Math.min(W, (x1 / 1000 + pad) * W) - x, h = Math.min(H, (y1 / 1000 + pad) * H) - y;
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w)); cv.height = Math.max(1, Math.round(h));
+    const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(im, x, y, w, h, 0, 0, cv.width, cv.height);
+    e.crops[i] = cv.toDataURL('image/jpeg', .9);
+    if(hwCur === e && e.sel === i) renderHwSheet();
+  };
+  im.onerror = () => { e.crops[i] = 'none'; };
+  im.src = src.view || src.url;
+  return null;
+}
 function renderHwSheet(){
   const e = hwCur, body = document.getElementById('hws-body'); if(!e || !body) return;
   const s = hwSubj(e.k), Q = hwQ(), pics = e.imgs.length ? e.imgs.map(i => i.url) : e.thumbOnly ? [e.thumbOnly] : [], many = e.imgs.length > 1;
+  // com várias questões, mostra a imagem da questão escolhida (e só o trecho dela, quando o Zen disse onde está)
+  const focus = !e.busy && Q && e.imgs.length && Q.imagem && e.imgs[Q.imagem - 1] ? Q.imagem - 1 : -1;
+  const crop = focus >= 0 && Q.caixa ? hwQCrop(e, e.sel) : null;
+  const pill = `<span class="absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 text-white text-[12px] font-semibold px-2 py-0.5 pointer-events-none">${svg('search', 'w-3.5 h-3.5')}Ampliar</span>`;
+  const focused = focus < 0 ? '' : `<div class="relative bg-[#11180F] grid place-items-center p-2">
+      <button type="button" data-hws-zoom="${crop ? 'q' : focus}" class="relative max-w-full rounded-md cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F4BC4E]" aria-label="Ampliar ${crop ? 'o trecho da questão' : `a imagem ${focus + 1}`}">
+        <img src="${crop || e.imgs[focus].url}" alt="${crop ? `Trecho da questão ${e.sel + 1}` : `Imagem ${focus + 1}`}" class="max-h-[280px] w-auto max-w-full object-contain rounded-md bg-white">${pill}</button>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 pt-3 text-[13px] text-muted">
+      <span>${many ? `Imagem ${focus + 1} de ${e.imgs.length}` : 'Foto da página'}${crop ? ', só o trecho desta questão' : ''}</span>
+      <button type="button" data-hws-zoom="${focus}" class="font-semibold text-forest-500 hover:text-forest-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Ver a imagem inteira</button>
+    </div>`;
   const chip = `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold" style="background:${s.tom};color:${s.cor}">${hwGlyph(e.k, 'w-4 h-4 !text-[15px]')}${s.nome}</span>`;
   // a questão (foto + o texto que o Zen leu)
   let html = `<section class="rounded-2xl bg-paper border border-line shadow-card overflow-hidden" aria-label="A questão">
-    ${pics.length ? `<div class="relative bg-[#11180F] ${many ? 'flex gap-2 overflow-x-auto p-2' : 'grid place-items-center'} ${e.busy ? 'hw-scan' : ''}">${pics.map((u, i) => `<button type="button" data-hws-zoom="${i}" class="relative ${many ? 'shrink-0' : 'max-w-full'} rounded-md cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F4BC4E]" aria-label="Ampliar ${many ? `a imagem ${i + 1}` : 'a foto'}">
+    ${focused || (pics.length ? `<div class="relative bg-[#11180F] ${many ? 'flex gap-2 overflow-x-auto p-2' : 'grid place-items-center'} ${e.busy ? 'hw-scan' : ''}">${pics.map((u, i) => `<button type="button" data-hws-zoom="${i}" class="relative ${many ? 'shrink-0' : 'max-w-full'} rounded-md cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F4BC4E]" aria-label="Ampliar ${many ? `a imagem ${i + 1}` : 'a foto'}">
       <img src="${u}" alt="${many ? `Imagem ${i + 1} da questão` : 'Foto da questão'}" class="${many ? 'h-[200px] w-auto rounded-md bg-white' : 'max-h-[260px] w-auto max-w-full'} object-contain">
-      <span class="absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 text-white text-[12px] font-semibold px-2 py-0.5 pointer-events-none">${svg('search', 'w-3.5 h-3.5')}Ampliar</span></button>`).join('')}</div>` : ''}
+      ${pill}</button>`).join('')}</div>` : '')}
     <div class="px-5 py-4">
       <div class="flex flex-wrap items-center gap-2">${chip}${e.mode === 'pagina' ? '<span class="text-[13px] text-muted">Página inteira</span>' : ''}</div>
       ${Q && Q.enunciado ? `<div class="zen-md mt-3 !text-[15.5px]">${md(Q.enunciado)}</div>` : e.text ? `<p class="mt-3 text-[15.5px] whitespace-pre-wrap">${esc(e.text)}</p>` : ''}
@@ -5981,12 +6021,15 @@ async function hwSolve(){
   const prompt = `${what}
 ${subj ? `Matéria: ${subj.nome}.` : 'Descubra de que matéria é.'}
 Explique como um bom professor explicaria para mim, aluno do ensino médio: de 2 a 8 passos curtos, cada um com o porquê, sem pular contas. Confira a conta no fim. Se for de interpretação, redação ou opinião, mostre o caminho e um exemplo de resposta.
-Formato: ${HW_FORMAT}`;
+${n && e.mode === 'pagina' ? `Em cada item de "questoes", acrescente "imagem" (o número da imagem onde a questão está, de 1 a ${n}) e "caixa" (a área da questão nessa imagem, como [ymin, xmin, ymax, xmax] de 0 a 1000, pegando o enunciado inteiro, figuras e alternativas).\n` : ''}Formato: ${HW_FORMAT}`;
   try{
     const d = await askGeminiJSON(prompt, zenSystemPrompt(), e.imgs);
     const txt = v => String(v == null ? '' : v).trim();
     const qs = (d.questoes || d.questions || []).filter(q => q && (q.resposta || (q.passos || []).length)).slice(0, 8).map(q => ({
       enunciado:txt(q.enunciado), conceito:txt(q.conceito), resposta:txt(q.resposta) || '—', cuidado:txt(q.cuidado),
+      // em qual imagem está e onde (só no modo "todas as questões"; com uma imagem só, é sempre a 1)
+      imagem:n && e.mode === 'pagina' ? (+q.imagem >= 1 && +q.imagem <= n ? Math.round(+q.imagem) : n === 1 ? 1 : 0) : 0,
+      caixa:n && e.mode === 'pagina' ? hwBox(q.caixa || q.box_2d) : null,
       passos:(q.passos || []).filter(p => p && (p.texto || p.titulo)).slice(0, 12).map(p => typeof p === 'string' ? {titulo:'', texto:p} : {titulo:txt(p.titulo), texto:txt(p.texto)})
     }));
     if(!qs.length){ if(d.aviso){ e.errMsg = `O Zen não conseguiu resolver: ${txt(d.aviso)}`; throw new ZenError('vazio'); } throw new ZenError('json'); }
@@ -6052,7 +6095,10 @@ function hwMarkdown(e, Q){
 async function hwSheetClick(ev){
   const e = hwCur; if(!e) return;
   const zb = ev.target.closest('[data-hws-zoom]');
-  if(zb) return openHwViewer(e.imgs.length ? e.imgs.map(i => i.view || i.url) : e.thumbOnly ? [e.thumbOnly] : [], +zb.dataset.hwsZoom);
+  if(zb){
+    if(zb.dataset.hwsZoom === 'q') return openHwViewer([e.crops[e.sel]], 0);
+    return openHwViewer(e.imgs.length ? e.imgs.map(i => i.view || i.url) : e.thumbOnly ? [e.thumbOnly] : [], +zb.dataset.hwsZoom);
+  }
   const qb = ev.target.closest('[data-hws-q]');
   if(qb){ e.sel = +qb.dataset.hwsQ; e.askMode = null; e.anim = 'all'; renderHwSheet(); return; }
   if(ev.target.matches('[data-hws-tentar]')){
