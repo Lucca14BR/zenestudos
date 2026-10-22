@@ -5263,13 +5263,13 @@ function paintHwTray(){
   const n = hwTray.length, act = document.getElementById('hw-acts');
   el.className = `rounded-2xl border-2 border-dashed transition-colors ${n ? 'border-line bg-cream p-3' : 'border-[#D9D1BE] bg-cream hover:bg-sand'}`;
   el.innerHTML = n ? `<div class="grid grid-cols-3 sm:grid-cols-4 gap-2.5">${hwTray.map((t, i) => `<div class="relative aspect-square">
-        <button type="button" data-hw-crop="${i}" class="w-full h-full rounded-xl overflow-hidden border border-line bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Recortar" aria-label="Recortar a imagem ${i + 1}"><img src="${t.img.thumb}" alt="" class="w-full h-full object-contain p-1"></button>
+        <button type="button" data-hw-view="${i}" class="w-full h-full rounded-xl overflow-hidden border border-line bg-white cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Ver maior" aria-label="Ver a imagem ${i + 1} maior"><img src="${t.img.thumb}" alt="" class="w-full h-full object-contain p-1"></button>
         <span class="absolute left-1.5 bottom-1.5 rounded-md bg-black/60 text-white text-[11.5px] font-bold px-1.5 pointer-events-none">${i + 1}</span>
         <button type="button" data-hw-rm="${i}" class="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-ink text-white grid place-items-center shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a imagem ${i + 1}"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>`).join('')}
       ${n < HW_MAX ? `<button type="button" data-hw-pick class="aspect-square rounded-xl border-2 border-dashed border-[#D9D1BE] grid place-items-center text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Adicionar mais imagens"><span class="text-center"><span class="block text-[26px] leading-none">+</span><span class="block text-[12.5px] font-semibold mt-1">Mais</span></span></button>` : ''}
     </div>
-    <p class="mt-2.5 text-[13px] text-muted">Toque numa imagem para recortar. Dá para colar ou arrastar mais (até ${HW_MAX}).</p>`
+    <p class="mt-2.5 text-[13px] text-muted">Toque numa imagem para ver maior, dar zoom ou recortar. Dá para colar ou arrastar mais (até ${HW_MAX}).</p>`
     : `<div class="flex flex-col items-center text-center px-4 py-6">
       <button type="button" data-hw-pick class="flex flex-col items-center gap-1.5 rounded-xl px-3 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">
         <span class="w-12 h-12 rounded-full bg-honey text-ember grid place-items-center">${hwIco('gallery', 'w-6 h-6')}</span>
@@ -5316,7 +5316,8 @@ function openHwStart(){
     if(e.target.closest('[data-hw-pick]')) return hwAddFiles(await pickImageFiles(true));
     if(e.target.closest('[data-hw-paste]')) return hwPasteButton();
     const rm = e.target.closest('[data-hw-rm]'); if(rm){ hwTray.splice(+rm.dataset.hwRm, 1); return paintHwTray(); }
-    const cr = e.target.closest('[data-hw-crop]'); if(cr) return openHwCamera(null, {edit:+cr.dataset.hwCrop});
+    const vw = e.target.closest('[data-hw-view]');
+    if(vw) return openHwViewer(hwTray.map(t => t.img.url), +vw.dataset.hwView, {onCrop:i => openHwCamera(null, {edit:i})});
     if(e.target.closest('[data-hw-go]')){
       const imgs = hwTray.splice(0).map(t => t.img); closeModal();
       return openHwSolution(hwNewEntry({imgs}));
@@ -5675,6 +5676,126 @@ function hwSolveImgs(imgs){
   openHwSolution(hwNewEntry({imgs}));
 }
 
+// ---- ver a imagem grande, com zoom (pinça, rodinha do mouse, dois toques ou os botões + e −) ----
+// opts.onCrop(i): mostra o botão "Recortar" (usado na janela do Dever de casa, antes de mandar)
+function openHwViewer(urls, start = 0, opts = {}){
+  if(!urls.length) return;
+  const many = urls.length > 1, back = document.activeElement;
+  const o = document.createElement('div');
+  o.className = 'fixed inset-0 z-[60] bg-[#0D120C] text-white flex flex-col select-none';
+  o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-label', 'Imagem ampliada');
+  const sym = d => `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="${d}"/></svg>`;
+  const arrow = (dir, d, label, side) => `<button type="button" data-v="${dir}" class="hw-ib absolute ${side} top-1/2 -translate-y-1/2 !bg-black/45 hover:!bg-black/65" aria-label="${label}">${sym(d)}</button>`;
+  o.innerHTML = `<div class="flex items-center gap-2 px-3 pt-[max(12px,env(safe-area-inset-top))] pb-2">
+      <p data-v="count" class="flex-1 min-w-0 truncate text-[14px] font-semibold text-white/80" aria-live="polite"></p>
+      ${opts.onCrop ? `<button type="button" data-v="crop" class="h-11 rounded-full bg-white/10 hover:bg-white/20 px-3.5 text-[13.5px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Recortar</button>` : ''}
+      <button type="button" data-v="out" class="hw-ib" aria-label="Diminuir o zoom">${sym('M6 12h12')}</button>
+      <button type="button" data-v="reset" class="min-w-[60px] h-11 rounded-full bg-white/10 hover:bg-white/20 px-2 text-[13.5px] font-bold tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-white" title="Voltar ao tamanho da tela"></button>
+      <button type="button" data-v="in" class="hw-ib" aria-label="Aumentar o zoom">${sym('M6 12h12M12 6v12')}</button>
+      <button type="button" data-v="close" class="hw-ib ml-1" aria-label="Fechar">${HW_X}</button>
+    </div>
+    <div data-v="stage" class="relative flex-1 min-h-0 overflow-hidden touch-none cursor-grab">
+      <img data-v="img" alt="" draggable="false" class="absolute left-0 top-0 max-w-none origin-top-left bg-white">
+      ${many ? arrow('prev', 'm15 6-6 6 6 6', 'Imagem anterior', 'left-3') + arrow('next', 'm9 6 6 6-6 6', 'Próxima imagem', 'right-3') : ''}
+    </div>
+    <p class="text-center text-[12.5px] text-white/55 px-4 pt-2 pb-[max(10px,env(safe-area-inset-bottom))]">Dois toques ou pinça para dar zoom. Arraste para mover.</p>`;
+  document.body.appendChild(o);
+  const $ = k => o.querySelector(`[data-v="${k}"]`), stage = $('stage'), img = $('img');
+  const v = {i:start, w:1, h:1, fit:1, s:1, x:0, y:0};
+  const clamp = () => {
+    const sw = stage.clientWidth, sh = stage.clientHeight, W = v.w * v.s, H = v.h * v.s;
+    v.x = W <= sw ? (sw - W) / 2 : Math.min(0, Math.max(sw - W, v.x));
+    v.y = H <= sh ? (sh - H) / 2 : Math.min(0, Math.max(sh - H, v.y));
+  };
+  const apply = () => {
+    clamp();
+    img.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.s})`;
+    $('reset').textContent = `${Math.round(v.s / v.fit * 100)}%`;
+    stage.classList.toggle('cursor-grab', v.s > v.fit * 1.01);
+  };
+  const fitNow = () => { v.fit = Math.min((stage.clientWidth - 16) / v.w, (stage.clientHeight - 16) / v.h); v.s = v.fit; v.x = v.y = 0; apply(); };
+  const zoomAt = (s, cx, cy) => {
+    s = Math.max(v.fit, Math.min(v.fit * 8, s));
+    v.x = cx - (cx - v.x) * s / v.s; v.y = cy - (cy - v.y) * s / v.s; v.s = s; apply();
+  };
+  const center = () => [stage.clientWidth / 2, stage.clientHeight / 2];
+  const show = i => {
+    v.i = (i + urls.length) % urls.length;
+    $('count').textContent = many ? `Imagem ${v.i + 1} de ${urls.length}` : 'Imagem da questão';
+    img.onload = () => { v.w = img.naturalWidth; v.h = img.naturalHeight; img.style.width = v.w + 'px'; img.style.height = v.h + 'px'; fitNow(); };
+    img.src = urls[v.i];
+  };
+  const close = () => {
+    o.remove(); document.removeEventListener('keydown', onKey); removeEventListener('resize', fitNow);
+    if(back && back.focus && document.body.contains(back)) back.focus();
+  };
+  const onKey = e => {
+    if(e.key === 'Escape'){ e.preventDefault(); close(); }
+    else if(e.key === 'ArrowRight' && many) show(v.i + 1);
+    else if(e.key === 'ArrowLeft' && many) show(v.i - 1);
+    else if(e.key === '+' || e.key === '='){ zoomAt(v.s * 1.4, ...center()); }
+    else if(e.key === '-'){ zoomAt(v.s / 1.4, ...center()); }
+  };
+  document.addEventListener('keydown', onKey);
+  addEventListener('resize', fitNow);
+  o.addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if(!b) return;
+    const k = b.dataset.v;
+    if(k === 'close') close();
+    if(k === 'in') zoomAt(v.s * 1.5, ...center());
+    if(k === 'out') zoomAt(v.s / 1.5, ...center());
+    if(k === 'reset') fitNow();
+    if(k === 'prev') show(v.i - 1);
+    if(k === 'next') show(v.i + 1);
+    if(k === 'crop'){ const i = v.i; close(); opts.onCrop(i); }
+  });
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    zoomAt(v.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX - r.left, e.clientY - r.top);
+  }, {passive:false});
+  // um dedo (ou o mouse) arrasta; dois dedos fazem pinça; dois toques rápidos alternam entre caber na tela e 2,5x
+  const pts = new Map();
+  let pinch = null, drag = null, lastTap = 0;
+  stage.addEventListener('pointerdown', e => {
+    if(e.target.closest('button')) return;
+    try{ stage.setPointerCapture(e.pointerId); }catch(err){}
+    const r = stage.getBoundingClientRect();
+    pts.set(e.pointerId, {x:e.clientX - r.left, y:e.clientY - r.top});
+    if(pts.size === 2){
+      const [a, b] = [...pts.values()];
+      pinch = {d:Math.hypot(a.x - b.x, a.y - b.y) || 1, s:v.s}; drag = null;
+    } else if(pts.size === 1) drag = {x0:e.clientX, y0:e.clientY, vx:v.x, vy:v.y, t:performance.now()};
+  });
+  stage.addEventListener('pointermove', e => {
+    if(!pts.has(e.pointerId)) return;
+    const r = stage.getBoundingClientRect();
+    pts.set(e.pointerId, {x:e.clientX - r.left, y:e.clientY - r.top});
+    if(pinch && pts.size >= 2){
+      const [a, b] = [...pts.values()];
+      zoomAt(pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
+    } else if(drag && v.s > v.fit * 1.01){ v.x = drag.vx + e.clientX - drag.x0; v.y = drag.vy + e.clientY - drag.y0; apply(); }
+  });
+  const up = e => {
+    if(!pts.has(e.pointerId)) return;
+    const r = stage.getBoundingClientRect(), p = {x:e.clientX - r.left, y:e.clientY - r.top};
+    pts.delete(e.pointerId);
+    if(pinch){ if(pts.size < 2) pinch = null; return; }
+    if(!drag) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0, quick = performance.now() - drag.t < 300;
+    drag = null;
+    if(Math.abs(dx) < 8 && Math.abs(dy) < 8 && quick){
+      const now = performance.now();
+      if(now - lastTap < 320){ lastTap = 0; if(v.s > v.fit * 1.05) fitNow(); else zoomAt(v.fit * 2.5, p.x, p.y); }
+      else lastTap = now;
+    } else if(many && v.s <= v.fit * 1.01 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) show(v.i + (dx < 0 ? 1 : -1));   // deslizar troca de imagem
+  };
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+  show(start);
+  $('close').focus();
+}
+
 // ---- digitar a questão ----
 function openHwTyped(){
   openModal(`${modalHead('Digitar a questão')}
@@ -5749,7 +5870,9 @@ function renderHwSheet(){
   const chip = `<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold" style="background:${s.tom};color:${s.cor}">${hwGlyph(e.k, 'w-4 h-4 !text-[15px]')}${s.nome}</span>`;
   // a questão (foto + o texto que o Zen leu)
   let html = `<section class="rounded-2xl bg-paper border border-line shadow-card overflow-hidden" aria-label="A questão">
-    ${pics.length ? `<div class="relative bg-[#11180F] ${many ? 'flex gap-2 overflow-x-auto p-2' : 'grid place-items-center'} ${e.busy ? 'hw-scan' : ''}">${pics.map((u, i) => `<img src="${u}" alt="${many ? `Imagem ${i + 1} da questão` : 'Foto da questão'}" class="${many ? 'h-[200px] w-auto shrink-0 rounded-md bg-white' : 'max-h-[260px] w-auto max-w-full'} object-contain">`).join('')}</div>` : ''}
+    ${pics.length ? `<div class="relative bg-[#11180F] ${many ? 'flex gap-2 overflow-x-auto p-2' : 'grid place-items-center'} ${e.busy ? 'hw-scan' : ''}">${pics.map((u, i) => `<button type="button" data-hws-zoom="${i}" class="relative ${many ? 'shrink-0' : 'max-w-full'} rounded-md cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F4BC4E]" aria-label="Ampliar ${many ? `a imagem ${i + 1}` : 'a foto'}">
+      <img src="${u}" alt="${many ? `Imagem ${i + 1} da questão` : 'Foto da questão'}" class="${many ? 'h-[200px] w-auto rounded-md bg-white' : 'max-h-[260px] w-auto max-w-full'} object-contain">
+      <span class="absolute right-1.5 bottom-1.5 inline-flex items-center gap-1 rounded-full bg-black/60 text-white text-[12px] font-semibold px-2 py-0.5 pointer-events-none">${svg('search', 'w-3.5 h-3.5')}Ampliar</span></button>`).join('')}</div>` : ''}
     <div class="px-5 py-4">
       <div class="flex flex-wrap items-center gap-2">${chip}${e.mode === 'pagina' ? '<span class="text-[13px] text-muted">Página inteira</span>' : ''}</div>
       ${Q && Q.enunciado ? `<div class="zen-md mt-3 !text-[15.5px]">${md(Q.enunciado)}</div>` : e.text ? `<p class="mt-3 text-[15.5px] whitespace-pre-wrap">${esc(e.text)}</p>` : ''}
@@ -5779,7 +5902,7 @@ function hwSolutionHTML(e, Q){
   const n = Q.shown == null ? Q.passos.length : Q.shown;
   let h = '';
   if(e.data.aviso) h += `<p class="mt-4 rounded-xl bg-sand border border-[#E6D9B8] px-4 py-2.5 text-[14px]">⚠️ ${esc(e.data.aviso)}</p>`;
-  if(qs.length > 1) h += `<div class="mt-5 flex gap-1.5 overflow-x-auto hw-chips" role="tablist" aria-label="Questões da página">${qs.map((q, i) => `<button type="button" role="tab" aria-selected="${i === e.sel}" data-hws-q="${i}" class="shrink-0 rounded-full px-3.5 py-1.5 text-[14px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${i === e.sel ? 'bg-forest-700 text-[#F3F1E6]' : 'bg-paper border border-line text-ink-2 hover:bg-sand'}">Questão ${i + 1}</button>`).join('')}</div>`;
+  if(qs.length > 1) h += `<div class="mt-5 flex flex-wrap gap-1.5" role="tablist" aria-label="Questões da página">${qs.map((q, i) => `<button type="button" role="tab" aria-selected="${i === e.sel}" data-hws-q="${i}" class="shrink-0 rounded-full px-3.5 py-1.5 text-[14px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 ${i === e.sel ? 'bg-forest-700 text-[#F3F1E6]' : 'bg-paper border border-line text-ink-2 hover:bg-sand'}">Questão ${i + 1}</button>`).join('')}</div>`;
   // resposta
   h += `<section class="mt-5 rounded-2xl border-2 border-[#F4BC4E] bg-[#FFF8E6] px-5 py-4" aria-labelledby="hws-ans">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -5924,6 +6047,8 @@ function hwMarkdown(e, Q){
 }
 async function hwSheetClick(ev){
   const e = hwCur; if(!e) return;
+  const zb = ev.target.closest('[data-hws-zoom]');
+  if(zb) return openHwViewer(e.imgs.length ? e.imgs.map(i => i.url) : e.thumbOnly ? [e.thumbOnly] : [], +zb.dataset.hwsZoom);
   const qb = ev.target.closest('[data-hws-q]');
   if(qb){ e.sel = +qb.dataset.hwsQ; e.askMode = null; e.anim = 'all'; renderHwSheet(); return; }
   if(ev.target.matches('[data-hws-tentar]')){
@@ -6816,128 +6941,3 @@ function chatBubble(m, idx){
     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
       ${idx >= 0 ? ['nota:Salvar em Anotações', 'resumo:Virar resumo', 'cards:Virar flashcards', 'copy:Copiar'].map(x => { const [a, l] = x.split(':'); return `<button type="button" data-msg-act="${a}" data-msg="${idx}" class="font-semibold text-[#3F6B35] hover:underline">${l}</button>`; }).join('') : ''}
       ${m.time ? `<span class="ml-auto text-[11px] text-[#5E7552] tabular-nums">${m.time}</span>` : ''}
-    </div></div></div>`;
-}
-function renderChat(){
-  const log = document.getElementById('chat-log');
-  let html = chatBubble({role:'model', text:CHAT_HELLO}, -1) + CHAT.map((m, i) => chatBubble(m, i)).join('');
-  if(chatBusy) html += `<div class="flex items-center gap-3">${ZEN_AVATAR}<div class="rounded-2xl bg-[#E6EFDC] border border-[#CFE0BF] px-4 py-3 flex gap-1.5" role="status" aria-label="Zen está escrevendo"><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span><span class="dot w-2 h-2 rounded-full bg-[#6E8A60]"></span></div></div>`;
-  if(chatErr) html += `<div class="flex items-start gap-3">${ZEN_AVATAR}<div class="max-w-[88%] rounded-2xl rounded-tl-md bg-sand border border-[#E6D9B8] px-4 py-3">
-      <p class="text-[15px]">${esc(zenErrorText(chatErr))}</p>
-      <div class="mt-2.5 flex flex-wrap gap-2">
-        ${['semchave', 'chave', 'modelo'].includes(chatErr.code) ? `<button type="button" data-open-settings class="${btnPrimary} !py-2 !text-[14px]">Abrir Configurações</button>` : ''}
-        <button type="button" data-chat-retry class="${btnSoft} !py-2 !text-[14px]">Tentar de novo</button>
-      </div></div></div>`;
-  log.innerHTML = html;
-  renderMath(log);
-  log.scrollTop = log.scrollHeight;
-  document.getElementById('chat-suggest').innerHTML = CHAT.length ? '' : CHAT_SUGGEST.map(s => `<button type="button" data-suggest class="shrink-0 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13.5px] text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${esc(s)}</button>`).join('');
-  document.getElementById('chat-send').disabled = chatBusy;
-}
-let chatPending = null;     // fotos em tamanho bom da última mensagem (as antigas vão em miniatura)
-async function sendChat(text, imgs){
-  if(chatBusy) return;
-  if(text){
-    const m = {role:'user', text, time:nowTime()};
-    if(imgs && imgs.length) m.imgs = imgs.map(i => i.thumb);
-    chatPending = imgs && imgs.length ? imgs : null;
-    CHAT.push(m); saveChat(); STATS.chatMessages++; addXP(XP.chat, 'chat');
-  }
-  if(!CHAT.length || CHAT[CHAT.length - 1].role !== 'user') return;
-  chatErr = null; chatBusy = true; renderChat();
-  try{
-    const recent = CHAT.slice(-24);
-    const contents = recent.map((m, k) => {
-      const imgs = k === recent.length - 1 && chatPending ? chatPending : (m.imgs || []).filter(u => /^data:image\//.test(u)).map(u => ({mime:'image/jpeg', data:u.split(',')[1]}));
-      return {role:m.role, parts:[...imgParts(imgs), {text:m.text + (imgs.length && m.role === 'user' ? imgHint(imgs) : '')}]};
-    });
-    while(contents.length && contents[0].role !== 'user') contents.shift();   // a conversa precisa começar pelo aluno
-    const r = await askGemini({contents, system:zenSystemPrompt()});
-    CHAT.push({role:'model', text:r.text, time:nowTime(), model:r.model}); chatPending = null; saveChat();
-    if(r.model !== SETTINGS.main) toast(`O modelo principal não respondeu, então o Zen usou a reserva (${modelName(r.model)}).`);
-  }catch(err){ chatErr = err; }
-  chatBusy = false; renderChat();
-}
-const chatInput = document.getElementById('chat-input');
-const fitChatInput = () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(160, chatInput.scrollHeight) + 'px'; };
-chatInput.addEventListener('input', fitChatInput);
-chatInput.addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('chat-form').requestSubmit(); } });
-// fotos para o Zen: botão da câmera, colar (Ctrl+V) ou arrastar para a conversa
-let chatImgs = [];
-function paintChatAtt(){
-  const el = document.getElementById('chat-att-list');
-  el.classList.toggle('hidden', !chatImgs.length);
-  el.innerHTML = chatImgs.map((im, k) => `<span class="relative"><img src="${im.thumb}" alt="Foto ${k + 1}" class="w-16 h-16 rounded-xl object-cover border border-line">
-    <button type="button" data-chat-att-del="${k}" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white grid place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a foto ${k + 1}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>`).join('');
-}
-async function addChatImages(files){
-  for(const f of imagesFrom(files)){
-    if(chatImgs.length >= ATTACH_MAX){ toast(`No máximo ${ATTACH_MAX} fotos por mensagem.`); break; }
-    try{ chatImgs.push(await readImage(f)); }catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
-  }
-  paintChatAtt(); chatInput.focus();
-}
-document.getElementById('chat-att').addEventListener('click', async () => addChatImages(await pickImageFiles()));
-document.getElementById('chat-att-list').addEventListener('click', e => { const d = e.target.closest('[data-chat-att-del]'); if(d){ chatImgs.splice(+d.dataset.chatAttDel, 1); paintChatAtt(); } });
-chatInput.addEventListener('paste', e => { const fs = imagesFrom(e.clipboardData && e.clipboardData.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
-const chatScreen = document.querySelector('[data-screen="chat"]');
-chatScreen.addEventListener('dragover', e => { if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
-chatScreen.addEventListener('drop', e => { const fs = imagesFrom(e.dataTransfer.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
-document.getElementById('chat-form').addEventListener('submit', e => {
-  e.preventDefault();
-  const text = chatInput.value.trim();
-  if((!text && !chatImgs.length) || chatBusy) return;
-  const imgs = chatImgs; chatImgs = []; paintChatAtt();
-  chatInput.value = ''; fitChatInput();
-  sendChat(text || (imgs.length > 1 ? 'Me ajuda com estas fotos?' : 'Me ajuda com esta foto?'), imgs);
-});
-document.getElementById('chat-log').addEventListener('click', async e => {
-  if(e.target.closest('[data-chat-retry]')) return sendChat();
-  const b = e.target.closest('[data-msg-act]'); if(!b) return;
-  const i = +b.dataset.msg, m = CHAT[i], prev = CHAT[i - 1];
-  const heading = (m.text.match(/^#{1,4}\s+(.+)$/m) || [])[1];
-  const title = (heading || (prev && prev.role === 'user' ? prev.text : 'Do chat com o Zen')).replace(/[*_#`$]/g, '').slice(0, 80);
-  if(b.dataset.msgAct === 'nota'){ const n = createNoteFromMarkdown(title, m.text, '🦫', 'geral'); toast(`Anotação "${n.title}" criada.`); }
-  if(b.dataset.msgAct === 'resumo') openSummaryEditor(SUBJECTS[0].k, null, {t:title, content:m.text});
-  if(b.dataset.msgAct === 'copy') navigator.clipboard.writeText(m.text).then(() => toast('Copiado.'), () => toast('Não deu para copiar.'));
-  if(b.dataset.msgAct === 'cards'){
-    b.disabled = true; b.textContent = 'Criando...';
-    try{ const n = await generateCards(null, title, `Use como base esta explicação:\n${m.text}`, 6); toast(`${n} cartões criados em Flashcards.`); }
-    catch(err){ toast(zenErrorText(err)); }
-    b.disabled = false; b.textContent = 'Virar flashcards';
-  }
-});
-document.getElementById('chat-suggest').addEventListener('click', e => { const b = e.target.closest('[data-suggest]'); if(b) sendChat(b.textContent); });
-document.getElementById('chat-new').addEventListener('click', () => {
-  if(chatBusy || !CHAT.length) return;
-  if(!confirm('Começar uma conversa nova? A conversa atual será apagada.')) return;
-  CHAT.length = 0; chatErr = null; saveChat(); renderChat(); chatInput.focus();
-});
-// se a última mensagem ficou sem resposta (erro, aba fechada), oferece responder agora
-if(CHAT.length && CHAT[CHAT.length - 1].role === 'user') chatErr = new ZenError('pendente');
-renderChat();
-paintKeyStatus();
-// o KaTeX carrega depois da página: quando chegar, desenha as fórmulas que já estão na tela
-// O KaTeX chega depois: redesenha o chat e a tela aberta para as fórmulas aparecerem
-window.addEventListener('load', () => {
-  renderMath(document.getElementById('chat-log'));
-  if(currentScreen !== 'chat' && SCREEN_REFRESH[currentScreen]) try{ SCREEN_REFRESH[currentScreen](); }catch(err){}
-});
-
-// ---------- Abertura do app ----------
-document.getElementById('mobile-avatar').textContent = PROFILE_AVATAR[ME.id];
-registerVisit(); refreshStreak(); settleLastWeek();
-try{ checkMissions(); checkAchievements(); }catch(err){}
-if(SCREEN_REFRESH[currentScreen]) SCREEN_REFRESH[currentScreen]();
-setTimeout(maybeAskProfile, 400);
-setInterval(() => { try{ checkMissions(); }catch(err){} }, 15000);
-
-// fechar a janela (modal): botão X, clique fora ou Esc
-document.getElementById('modal').addEventListener('click', e => {
-  if(document.getElementById('modal').dataset.lock) return;
-  if(e.target.closest('[data-close]') || e.target.id === 'modal' || e.target === document.getElementById('modal').firstElementChild) closeModal();
-});
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('modal').classList.contains('hidden') && !document.getElementById('modal').dataset.lock) closeModal(); });
-</script>
-</body>
-</html>
