@@ -228,11 +228,13 @@
           <div id="chat-log" class="flex-1 overflow-y-auto thin-scroll px-5 sm:px-8 pb-4 space-y-4" aria-live="polite"></div>
 
           <div id="chat-suggest" class="px-5 sm:px-8 pb-2 flex gap-2 overflow-x-auto no-scrollbar"></div>
+          <div id="chat-att-list" class="hidden px-5 sm:px-8 pb-1.5 flex flex-wrap gap-2" aria-label="Fotos para mandar"></div>
           <form id="chat-form" class="px-5 sm:px-8 pt-2 pb-6 flex items-end gap-3" autocomplete="off">
-            <label class="flex-1 flex items-end gap-2 rounded-[26px] bg-paper border border-line shadow-card pl-5 pr-3 focus-within:ring-2 focus-within:ring-forest-400/50">
-              <span class="sr-only">Mensagem para o Zen</span>
-              <textarea id="chat-input" rows="1" class="flex-1 max-h-[160px] resize-none bg-transparent py-3.5 text-[15px] leading-snug placeholder:text-muted focus:outline-none" placeholder="Digite sua mensagem..."></textarea>
-            </label>
+            <div class="flex-1 flex items-end gap-1 rounded-[26px] bg-paper border border-line shadow-card pl-1.5 pr-3 focus-within:ring-2 focus-within:ring-forest-400/50">
+              <button type="button" id="chat-att" class="w-10 h-10 my-1 rounded-full grid place-items-center text-ink-2 hover:bg-sand shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Mandar foto para o Zen" title="Mandar foto (ou cole com Ctrl+V)"><svg class="w-[21px] h-[21px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg></button>
+              <label class="flex-1 flex min-w-0"><span class="sr-only">Mensagem para o Zen</span>
+              <textarea id="chat-input" rows="1" class="flex-1 max-h-[160px] resize-none bg-transparent py-3.5 text-[15px] leading-snug placeholder:text-muted focus:outline-none" placeholder="Digite sua mensagem ou mande uma foto..."></textarea></label>
+            </div>
             <button id="chat-send" class="w-12 h-12 rounded-full bg-forest-700 hover:bg-forest-900 text-white grid place-items-center shadow-card shrink-0 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 focus-visible:ring-offset-cream" aria-label="Enviar">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>
             </button>
@@ -375,7 +377,7 @@
             <span id="sim-subject" class="rounded-lg border border-line bg-paper px-3 py-1 text-[13px] text-ink-2"></span>
           </div>
 
-          <div class="mt-6 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
+          <div id="sim-grid" class="mt-6 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
             <!-- Questão -->
             <div>
               <div id="sim-q" class="zen-md !text-[17px] text-ink max-w-[62ch]"></div>
@@ -389,14 +391,21 @@
             </div>
 
             <!-- Rascunho -->
-            <aside class="rounded-2xl bg-paper border border-line shadow-card p-4" aria-label="Rascunho">
-              <div class="flex items-center justify-between">
+            <aside class="rounded-2xl bg-paper border border-line shadow-card p-4 min-w-0" aria-label="Rascunho">
+              <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="font-bold text-[16px]">Rascunho</h2>
-                <span class="text-[12px] text-muted">não conta na nota</span>
+                <div id="sk-size" class="flex items-center rounded-lg bg-[#F1EEE5] p-0.5 text-[12.5px] font-semibold text-ink-2" role="group" aria-label="Tamanho do rascunho">
+                  <button type="button" data-sk-size="p" class="rounded-md px-2.5 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Pequeno, ao lado da questão">P</button>
+                  <button type="button" data-sk-size="m" class="rounded-md px-2.5 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Médio, ao lado da questão">M</button>
+                  <button type="button" data-sk-size="g" class="rounded-md px-2.5 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Grande, embaixo da questão">G</button>
+                </div>
               </div>
-              <div id="sim-tools" class="mt-3 flex items-center gap-1 rounded-xl bg-[#F1EEE5] p-1"></div>
-              <canvas id="sim-canvas" class="mt-3 w-full h-[300px] rounded-xl border border-line touch-none cursor-crosshair"
-                style="background-color:#FFFDF8;background-image:linear-gradient(#F0ECE2 1px,transparent 1px),linear-gradient(90deg,#F0ECE2 1px,transparent 1px);background-size:20px 20px"></canvas>
+              <div id="sim-tools" class="mt-3 flex flex-wrap items-center justify-center gap-x-0.5 gap-y-1 rounded-xl bg-[#F1EEE5] p-1"></div>
+              <div id="sk-wrap" class="relative mt-3 rounded-xl border border-line overflow-hidden resize-y" style="height:300px;min-height:160px;max-height:1100px">
+                <canvas id="sim-canvas" class="block w-full h-full touch-none cursor-crosshair"></canvas>
+              </div>
+              <p class="mt-1.5 flex flex-wrap justify-between gap-x-3 text-[12px] text-muted"><span>Não conta na nota.</span><span>Arraste o canto de baixo para mudar a altura.</span></p>
+              <button id="sk-zen" type="button" class="hidden mt-2.5 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-paper border border-line px-3.5 py-2 text-[14px] font-semibold hover:bg-sand disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400"><svg class="w-[18px] h-[18px]" aria-hidden="true"><use href="#zen-head"/></svg>Zen, confere meu rascunho</button>
             </aside>
           </div>
 
@@ -545,9 +554,14 @@
               <div id="wb-wrap" class="relative mt-4 rounded-[22px] bg-paper border border-line shadow-window overflow-hidden">
                 <canvas id="wb-canvas" class="block w-full aspect-[16/10] touch-none cursor-crosshair" aria-label="Quadro de desenho"
                   style="background-color:#FFFDF8;background-image:radial-gradient(#E4DFD2 1.2px,transparent 1.2px);background-size:24px 24px"></canvas>
-                <input id="wb-text" type="text" class="hidden absolute bg-transparent border-b-2 border-dashed border-forest-400 outline-none font-sans" placeholder="Digite e aperte Enter" aria-label="Texto no quadro">
               </div>
-              <p class="mt-3 text-center text-[12.5px] text-muted">Atalhos: P lápis, M marca-texto, E borracha, L linha, R retângulo, O círculo, T texto, Ctrl+Z desfaz.</p>
+              <form id="wb-ask" class="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-paper border border-line shadow-card p-2 pl-3" autocomplete="off">
+                <svg class="w-9 h-9 rounded-full bg-sand shrink-0" aria-hidden="true"><use href="#zen-head"/></svg>
+                <label class="flex-1 min-w-[200px]"><span class="sr-only">Pedido para o Zen fazer no quadro</span><input id="wb-ask-in" maxlength="400" class="w-full bg-transparent py-2 text-[15px] placeholder:text-muted focus:outline-none" placeholder="Peça ao Zen: desenha o ciclo da água, corrige minha conta, faz o gráfico de y = x²..."></label>
+                <button id="wb-ask-go" class="inline-flex items-center gap-2 rounded-xl bg-forest-700 hover:bg-forest-900 text-[#F3F1E6] px-4 py-2.5 text-[14px] font-semibold shadow-pill disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 focus-visible:ring-offset-paper">Zen, faz no quadro</button>
+              </form>
+              <div id="wb-zen-out" class="hidden mt-3 rounded-2xl bg-[#E6EFDC] border border-[#CFE0BF] px-4 sm:px-5 py-4" aria-live="polite"></div>
+              <p class="mt-3 text-center text-[12.5px] text-muted">Atalhos: P lápis, M marca-texto, E borracha, X apaga o traço inteiro, V move, L linha, A seta, R retângulo, O círculo, G triângulo, T texto, Ctrl+Z desfaz. Para pôr uma imagem, cole com Ctrl+V.</p>
             </div>
 
 
@@ -1056,9 +1070,343 @@ function fixLatex(v){
   if(v && typeof v === 'object'){ Object.keys(v).forEach(k => v[k] = fixLatex(v[k])); return v; }
   return v;
 }
-async function askGeminiJSON(prompt, system){
-  const r = await askGemini({contents:[{role:'user', parts:[{text:prompt + '\n\nResponda SOMENTE com JSON válido, sem texto antes ou depois. Dentro das strings, escreva cada barra invertida dobrada (LaTeX: "\\\\frac") e cada quebra de linha como \\n.'}]}], system, json:true, temperature:0.5});
+async function askGeminiJSON(prompt, system, images){
+  const r = await askGemini({contents:[{role:'user', parts:[...imgParts(images), {text:prompt + imgHint(images) + '\n\nResponda SOMENTE com JSON válido, sem texto antes ou depois. Dentro das strings, escreva cada barra invertida dobrada (LaTeX: "\\\\frac") e cada quebra de linha como \\n.'}]}], system, json:true, temperature:0.5});
   return fixLatex(parseLooseJSON(r.text));
+}
+
+// ---------- Fotos para o Zen ----------
+// A foto é reduzida no próprio aparelho (JPEG) antes de ir para a Gemini; a miniatura serve para mostrar e guardar
+function readImage(file, max = 1600, quality = .85){
+  return new Promise((ok, no) => {
+    if(!file || !/^image\//.test(file.type)) return no(new Error('tipo'));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const fit = (m, q) => {
+        const s = Math.min(1, m / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+        return {url:c.toDataURL('image/jpeg', q), w:c.width, h:c.height};
+      };
+      const full = fit(max, quality), thumb = fit(480, .72);
+      ok({mime:'image/jpeg', data:full.url.split(',')[1], url:full.url, w:full.w, h:full.h, thumb:thumb.url});
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('img')); };
+    img.src = url;
+  });
+}
+const imgParts = imgs => (imgs || []).map(i => ({inlineData:{mimeType:i.mime, data:i.data}}));
+const imgHint = imgs => imgs && imgs.length ? `\n\n${imgs.length > 1 ? 'As fotos anexadas são' : 'A foto anexada é'} material do aluno (caderno, livro, prova, exercício ou desenho). Leia com atenção e use como base principal; se algo estiver ilegível, diga.` : '';
+const imagesFrom = list => [...(list || [])].filter(f => f && /^image\//.test(f.type));
+function pickImageFiles(multiple = true){
+  return new Promise(ok => {
+    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = multiple;
+    i.onchange = () => ok([...i.files]); i.click();
+  });
+}
+const CAMERA_ICO = '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+const ATTACH_MAX = 4;
+// Caixinha "Mandar foto" dos pedidos ao Zen: botão, colar (Ctrl+V) e arrastar para a janela
+function attachHTML(id, hint){
+  return `<div id="${id}" class="rounded-xl border border-dashed border-[#D9D1BE] bg-cream px-3.5 py-3">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <button type="button" data-att-add class="inline-flex items-center gap-2 rounded-lg bg-paper border border-line px-3 py-1.5 text-[13.5px] font-semibold text-ink hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${CAMERA_ICO}Mandar foto</button>
+      <span class="text-[13px] text-muted flex-1 min-w-[170px]">${hint || 'Foto do caderno, do livro ou do exercício. Também dá para colar com Ctrl+V.'}</span>
+    </div>
+    <div data-att-list class="hidden mt-2.5 flex flex-wrap gap-2"></div>
+  </div>`;
+}
+function bindAttach(id){
+  const box = document.getElementById(id), list = box.querySelector('[data-att-list]'), api = {images:[], onchange:null};
+  const paint = () => {
+    list.classList.toggle('hidden', !api.images.length);
+    list.innerHTML = api.images.map((im, k) => `<span class="relative"><img src="${im.thumb}" alt="Foto ${k + 1}" class="w-16 h-16 rounded-lg object-cover border border-line">
+      <button type="button" data-att-del="${k}" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white grid place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a foto ${k + 1}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>`).join('');
+    if(api.onchange) api.onchange();
+  };
+  api.add = async files => {
+    for(const f of imagesFrom(files)){
+      if(api.images.length >= ATTACH_MAX){ toast(`No máximo ${ATTACH_MAX} fotos por pedido.`); break; }
+      try{ api.images.push(await readImage(f)); }catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+    }
+    paint();
+  };
+  box.addEventListener('click', async e => {
+    if(e.target.closest('[data-att-add]')) api.add(await pickImageFiles());
+    const d = e.target.closest('[data-att-del]'); if(d){ api.images.splice(+d.dataset.attDel, 1); paint(); }
+  });
+  const scope = box.closest('form') || box.parentElement;
+  scope.addEventListener('paste', e => { const fs = imagesFrom(e.clipboardData && e.clipboardData.files); if(fs.length){ e.preventDefault(); api.add(fs); } });
+  scope.addEventListener('dragover', e => { if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+  scope.addEventListener('drop', e => { const fs = imagesFrom(e.dataTransfer.files); if(fs.length){ e.preventDefault(); api.add(fs); } });
+  return api;
+}
+
+// =====================================================================
+// Motor de desenho: o quadro branco e o rascunho do simulado usam o mesmo
+// Com W, as coordenadas são fixas na largura (o desenho acompanha o tamanho da tela);
+// sem W, cada unidade é um pixel (aumentar o rascunho dá mais espaço, sem esticar o desenho)
+const PAD_TOOLS = [
+  ['pen', 'Lápis', 'P', '<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z"/>'],
+  ['marker', 'Marca-texto', 'M', '<path d="M15.5 4.5l4 4L11 17H7v-4z"/><path d="M4 21h9"/>'],
+  ['eraser', 'Borracha', 'E', '<path d="m7 21-4-4L14 6l6 6-9 9z"/><path d="M7 21h13M9 11l6 6"/>'],
+  ['wipe', 'Apagar traço inteiro', 'X', '<path d="M3.5 17c3-6 6-9.5 9-9.5 2.5 0 2.5 3 5 2"/><path d="m14.5 15 5 5M19.5 15l-5 5"/>'],
+  ['move', 'Mover', 'V', '<path d="M12 3v18M3 12h18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'],
+  ['line', 'Linha', 'L', '<path d="M5 19 19 5"/>'],
+  ['arrow', 'Seta', 'A', '<path d="M5 19 19 5M10.5 5H19v8.5"/>'],
+  ['rect', 'Retângulo', 'R', '<rect x="4" y="6" width="16" height="12" rx="2"/>'],
+  ['ellipse', 'Círculo', 'O', '<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>'],
+  ['tri', 'Triângulo', 'G', '<path d="M12 4.5 20.5 19h-17z"/>'],
+  ['text', 'Texto', 'T', '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>']
+];
+const PAD_COLORS = [['#1E2A1B', 'Preto'], ['#4A7A42', 'Verde'], ['#E07B2C', 'Laranja'], ['#D65341', 'Vermelho'], ['#4B84B4', 'Azul'], ['#8B5CB8', 'Roxo']];
+const PAD_BGS = {
+  pontos:['Pontos', 'radial-gradient(#E4DFD2 1.2px,transparent 1.2px)', '24px 24px'],
+  quadriculado:['Quadriculado', 'linear-gradient(#EEE9DD 1px,transparent 1px),linear-gradient(90deg,#EEE9DD 1px,transparent 1px)', '22px 22px'],
+  pautado:['Pautado', 'linear-gradient(transparent 31px,#E3DCCB 31px)', '100% 32px'],
+  liso:['Liso', 'none', 'auto']
+};
+const PAD_KINDS = ['pen', 'marker', 'eraser', 'line', 'arrow', 'rect', 'ellipse', 'tri', 'text', 'img'];
+const padId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const okItem = it => it && typeof it.id === 'string' && PAD_KINDS.includes(it.t) && typeof it.color === 'string' && it.color.length < 30 && typeof it.size === 'number'
+  && (it.t !== 'img' || (typeof it.src === 'string' && it.src.startsWith('data:image/') && it.src.length < 700000));
+// junta uma mudança {add, del} numa lista de traços (o mesmo id substitui: é assim que "mover" funciona)
+function applyOp(items, op){
+  const add = (op.add || []).filter(okItem), del = new Set((op.del || []).map(it => it.id || it)), addIds = new Set(add.map(it => it.id));
+  const out = items.filter(it => !del.has(it.id) && !addIds.has(it.id)).concat(add);
+  if(add.length) out.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  return out;
+}
+class Pad {
+  constructor(o){
+    Object.assign(this, {W:0, compact:false, keys:false, allowImage:false, textBase:12, textStep:2.5, items:[], tool:'pen', color:PAD_COLORS[0][0], size:3,
+      fill:false, bold:false, bg:'pontos', past:[], future:[], cur:null, remote:{}, textAt:null, wiping:null, moving:null}, o);
+    this.ctx = this.canvas.getContext('2d'); this.imgCache = new Map();
+    this.text = document.createElement('input');
+    this.text.type = 'text'; this.text.className = 'hidden absolute z-10 bg-transparent border-b-2 border-dashed border-forest-400 outline-none font-sans';
+    this.text.placeholder = 'Digite e aperte Enter'; this.text.setAttribute('aria-label', 'Texto no desenho');
+    this.canvas.parentElement.appendChild(this.text);
+    this.buildToolbar(); this.bindEvents(); this.setBg(this.bg); this.paintTools();
+    new ResizeObserver(() => this.render()).observe(this.canvas);
+    if(document.fonts) document.fonts.ready.then(() => this.render());
+  }
+  get scale(){ return this.W ? (this.canvas.clientWidth || 1) / this.W : 1; }
+  get H(){ return (this.canvas.clientHeight || 1) / this.scale; }
+  get width(){ return this.W || this.canvas.clientWidth; }
+  textSize(){ return Math.round(this.textBase + this.size * this.textStep); }
+  pos(e){ const r = this.canvas.getBoundingClientRect(), s = this.scale; return [Math.round((e.clientX - r.left) / s * 10) / 10, Math.round((e.clientY - r.top) / s * 10) / 10]; }
+  image(it){
+    let im = this.imgCache.get(it.id);
+    if(!im){ im = new Image(); im.onload = () => this.render(); im.src = it.src; this.imgCache.set(it.id, im); }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  draw(ctx, it, ghost){
+    ctx.save();
+    ctx.strokeStyle = ctx.fillStyle = it.color; ctx.lineWidth = it.size; ctx.lineCap = ctx.lineJoin = 'round';
+    if(ghost) ctx.globalAlpha = .25;
+    if(it.t === 'marker') ctx.globalAlpha *= .4;
+    if(it.t === 'eraser'){ ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; }
+    const shape = path => { ctx.beginPath(); path(); if(it.fill){ const a = ctx.globalAlpha; ctx.globalAlpha = a * .2; ctx.fill(); ctx.globalAlpha = a; } ctx.stroke(); };
+    const x = Math.min(it.x1, it.x2), y = Math.min(it.y1, it.y2), w = Math.abs(it.x2 - it.x1), h = Math.abs(it.y2 - it.y1);
+    if(it.pts){
+      ctx.beginPath();
+      it.pts.forEach(([px, py], k) => k ? ctx.lineTo(px, py) : ctx.moveTo(px, py));
+      if(it.pts.length === 1) ctx.lineTo(it.pts[0][0] + .1, it.pts[0][1]);
+      ctx.stroke();
+    } else if(it.t === 'line' || it.t === 'arrow'){
+      ctx.beginPath(); ctx.moveTo(it.x1, it.y1); ctx.lineTo(it.x2, it.y2); ctx.stroke();
+      if(it.t === 'arrow' && (w || h)){
+        const a = Math.atan2(it.y2 - it.y1, it.x2 - it.x1), L = Math.max(12, it.size * 3.4);
+        ctx.beginPath(); ctx.moveTo(it.x2 - L * Math.cos(a - .45), it.y2 - L * Math.sin(a - .45)); ctx.lineTo(it.x2, it.y2); ctx.lineTo(it.x2 - L * Math.cos(a + .45), it.y2 - L * Math.sin(a + .45)); ctx.stroke();
+      }
+    } else if(it.t === 'rect') shape(() => ctx.roundRect ? ctx.roundRect(x, y, w, h, Math.min(14, w / 2, h / 2)) : ctx.rect(x, y, w, h));
+    else if(it.t === 'ellipse') shape(() => ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2));
+    else if(it.t === 'tri') shape(() => { ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath(); });
+    else if(it.t === 'text'){
+      ctx.font = `${it.bold ? 700 : 500} ${it.size}px Figtree, sans-serif`; ctx.textBaseline = 'middle';
+      String(it.text).split('\n').forEach((line, k) => ctx.fillText(line, it.x, it.y + k * it.size * 1.25));
+    } else if(it.t === 'img'){
+      const im = this.image(it);
+      if(im) ctx.drawImage(im, it.x, it.y, it.w, it.h); else { ctx.strokeStyle = '#D9D1BE'; ctx.lineWidth = 2; ctx.strokeRect(it.x, it.y, it.w, it.h); }
+    }
+    ctx.restore();
+  }
+  render(){
+    const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight; if(!cw || !ch) return;
+    const d = window.devicePixelRatio || 1, pw = Math.round(cw * d), ph = Math.round(ch * d), s = this.scale;
+    if(this.canvas.width !== pw || this.canvas.height !== ph){ this.canvas.width = pw; this.canvas.height = ph; }
+    const ctx = this.ctx;
+    ctx.setTransform(s * d, 0, 0, s * d, 0, 0);
+    ctx.clearRect(0, 0, this.width, this.H);
+    const mv = this.moving;
+    this.items.forEach(it => this.draw(ctx, mv && it === mv.orig ? mv.clone : it, this.wiping && this.wiping.has(it)));
+    const now = Date.now();     // traço que o amigo ainda está fazendo (quadro ao vivo)
+    Object.entries(this.remote).forEach(([id, r]) => { if(now - r.at > 8000) delete this.remote[id]; else this.draw(ctx, r.item); });
+    if(this.cur) this.draw(ctx, this.cur);
+    if(mv){ const [x1, y1, x2, y2] = this.bbox(mv.clone); ctx.save(); ctx.setLineDash([8 / s, 6 / s]); ctx.strokeStyle = '#4A7A42'; ctx.lineWidth = 1.5 / s; ctx.strokeRect(x1 - 6 / s, y1 - 6 / s, x2 - x1 + 12 / s, y2 - y1 + 12 / s); ctx.restore(); }
+  }
+  // caixa em volta de um traço e "acertou o traço?" (para apagar inteiro e mover)
+  bbox(it){
+    if(it.pts){ const xs = it.pts.map(p => p[0]), ys = it.pts.map(p => p[1]), r = it.size / 2; return [Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) + r, Math.max(...ys) + r]; }
+    if(it.t === 'text'){
+      this.ctx.save(); this.ctx.font = `${it.bold ? 700 : 500} ${it.size}px Figtree, sans-serif`;
+      const lines = String(it.text).split('\n'), w = Math.max(...lines.map(l => this.ctx.measureText(l).width)); this.ctx.restore();
+      return [it.x, it.y - it.size * .6, it.x + w, it.y + it.size * (.6 + (lines.length - 1) * 1.25)];
+    }
+    if(it.t === 'img') return [it.x, it.y, it.x + it.w, it.y + it.h];
+    return [Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.max(it.x1, it.x2), Math.max(it.y1, it.y2)];
+  }
+  hits(it, [x, y]){
+    const tol = 8 / this.scale + (it.size || 0) / 2;
+    const near = (ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l)) : 0; return Math.hypot(x - ax - t * dx, y - ay - t * dy) <= tol; };
+    if(it.pts) return it.pts.some((q, k) => near(...(it.pts[k - 1] || q), ...q));
+    if(it.t === 'line' || it.t === 'arrow') return near(it.x1, it.y1, it.x2, it.y2);
+    const [x1, y1, x2, y2] = this.bbox(it), m = 8 / this.scale;
+    return x >= x1 - m && x <= x2 + m && y >= y1 - m && y <= y2 + m;
+  }
+  topHit(p){ for(let k = this.items.length - 1; k >= 0; k--){ const it = this.items[k]; if(it.t !== 'eraser' && this.hits(it, p)) return it; } return null; }
+  moved(it, dx, dy){
+    const c = structuredClone(it);
+    if(c.pts) c.pts = c.pts.map(([x, y]) => [Math.round((x + dx) * 10) / 10, Math.round((y + dy) * 10) / 10]);
+    if(c.x1 != null){ c.x1 += dx; c.x2 += dx; c.y1 += dy; c.y2 += dy; }
+    if(c.x != null){ c.x += dx; c.y += dy; }
+    return c;
+  }
+  // toda mudança passa por aqui: dá para desfazer só o que você fez
+  do(op, record = true){
+    if(this.onApply) this.onApply(op); else this.items = applyOp(this.items, op);
+    if(record){ this.past.push(op); if(this.past.length > 100) this.past.shift(); this.future = []; }
+    this.render(); this.paintTools();
+    if(this.onChange) this.onChange();
+  }
+  undo(){ const op = this.past.pop(); if(!op) return; this.future.push(op); this.do({add:op.del, del:op.add}, false); }
+  redo(){ const op = this.future.pop(); if(!op) return; this.past.push(op); this.do(op, false); }
+  clear(){ if(this.items.length) this.do({add:[], del:this.items.slice()}); }
+  setItems(items){ this.closeText(true); this.items = items; this.past = []; this.future = []; this.remote = {}; this.cur = null; this.render(); this.paintTools(); }
+  setBg(k){
+    this.bg = PAD_BGS[k] ? k : 'pontos';
+    const [, img, size] = PAD_BGS[this.bg];
+    Object.assign(this.canvas.style, {backgroundColor:'#FFFDF8', backgroundImage:img, backgroundSize:size});
+    const sel = this.toolbar.querySelector('[data-bg]'); if(sel) sel.value = this.bg;
+  }
+  // imagem do desenho em fundo claro (para baixar ou mandar para o Zen)
+  toPNG(){
+    const w = Math.round(this.width), h = Math.round(this.H), c = document.createElement('canvas'), layer = document.createElement('canvas');
+    c.width = layer.width = w; c.height = layer.height = h;
+    const x = c.getContext('2d'); x.fillStyle = '#FFFDF8'; x.fillRect(0, 0, w, h);
+    const lx = layer.getContext('2d'); this.items.forEach(it => this.draw(lx, it));
+    x.drawImage(layer, 0, 0);
+    return c.toDataURL('image/png');
+  }
+  async addImage(file){
+    let im; try{ im = await readImage(file, 900, .78); }catch(err){ return toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+    const maxW = this.width * .45, maxH = this.H * .6, s = Math.min(1, maxW / im.w, maxH / im.h), w = Math.round(im.w * s), h = Math.round(im.h * s);
+    this.tool = 'move';
+    this.do({add:[{id:padId(), ts:Date.now(), t:'img', color:'#000', size:0, src:im.url, x:Math.round((this.width - w) / 2), y:Math.round((this.H - h) / 2), w, h}], del:[]});
+    toast('Imagem no quadro. Arraste para mudar de lugar.');
+  }
+  buildToolbar(){
+    const sz = this.compact ? 'w-8 h-8' : 'w-10 h-10', isz = this.compact ? 'w-[18px] h-[18px]' : 'w-5 h-5';
+    const b = (attr, label, inner) => `<button type="button" ${attr} title="${label}" aria-label="${label}" class="pad-btn ${sz} rounded-xl grid place-items-center text-ink-2 hover:bg-sand disabled:opacity-35 disabled:hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${inner}</button>`;
+    const ico = p => `<svg class="${isz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+    const dot = c => `<span class="${this.compact ? 'w-4 h-4' : 'w-5 h-5'} rounded-full ring-2 ring-white shadow" style="background:${c}"></span>`;
+    const group = html => `<div class="flex flex-wrap items-center justify-center gap-0.5">${html}</div>`;
+    this.toolbar.innerHTML = [
+      group(PAD_TOOLS.map(([k, l, key, p]) => b(`data-tool="${k}"`, this.keys ? `${l} (${key})` : l, ico(p))).join('')),
+      group(PAD_COLORS.map(([c, n]) => b(`data-color="${c}"`, `Cor ${n.toLowerCase()}`, dot(c))).join('') +
+        `<label data-color-pick class="pad-btn ${sz} relative rounded-xl grid place-items-center cursor-pointer hover:bg-sand focus-within:ring-2 focus-within:ring-forest-400" title="Outra cor">${dot('conic-gradient(#e74c3c,#f1c40f,#2ecc71,#1abc9c,#3498db,#9b59b6,#e74c3c)')}<input type="color" data-color-custom value="#2F6B8F" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="Escolher outra cor"></label>`),
+      group(`<label class="flex items-center gap-2 px-1.5 h-8" title="Espessura e tamanho do texto"><span class="sr-only">Espessura</span><input type="range" data-size min="1" max="30" value="${this.size}" class="${this.compact ? 'w-20' : 'w-24'} accent-[#4A7A42]"><span class="w-6 grid place-items-center"><span data-size-dot class="block rounded-full bg-ink-2"></span></span></label>` +
+        b('data-opt="fill"', 'Preencher as formas', ico('<rect x="4" y="6" width="16" height="12" rx="2" fill="currentColor" fill-opacity=".3"/>')) +
+        b('data-opt="bold"', 'Texto em negrito', '<span class="text-[16px] font-extrabold leading-none" aria-hidden="true">B</span>') +
+        `<label class="px-1"><span class="sr-only">Fundo</span><select data-bg class="rounded-lg bg-transparent border border-line px-1.5 ${this.compact ? 'py-1 text-[12.5px]' : 'py-1.5 text-[13px]'} text-ink-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Fundo">${Object.entries(PAD_BGS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('')}</select></label>` +
+        (this.allowImage ? b('data-act="img"', 'Pôr uma imagem', ico('<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/>')) : '')),
+      group(b('data-act="undo"', 'Desfazer (Ctrl+Z)', ico('<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>')) +
+        b('data-act="redo"', 'Refazer (Ctrl+Y)', ico('<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>')) +
+        b('data-act="clear"', 'Limpar tudo', ico('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>')))
+    ].join('<span class="w-px h-6 bg-line mx-1 hidden sm:block" aria-hidden="true"></span>');
+  }
+  paintTools(){
+    this.toolbar.querySelectorAll('.pad-btn').forEach(b => {
+      const d = b.dataset;
+      const on = d.tool ? d.tool === this.tool : d.color ? d.color === this.color && !['eraser', 'wipe', 'move'].includes(this.tool)
+        : b.hasAttribute('data-color-pick') ? !PAD_COLORS.some(c => c[0] === this.color) : d.opt ? !!this[d.opt] : null;
+      if(on === null) return;
+      if(!b.hasAttribute('data-color-pick')) b.setAttribute('aria-pressed', on);
+      b.classList.toggle('bg-forest-100', on); b.classList.toggle('text-forest-700', on);
+    });
+    const u = this.toolbar.querySelector('[data-act="undo"]'), r = this.toolbar.querySelector('[data-act="redo"]');
+    u.disabled = !this.past.length; r.disabled = !this.future.length;
+    const dt = this.toolbar.querySelector('[data-size-dot]'), px = Math.max(3, Math.min(22, 2 + this.size * .75));
+    dt.style.width = dt.style.height = px + 'px'; dt.style.background = this.color;
+    this.canvas.style.cursor = this.tool === 'text' ? 'text' : this.tool === 'move' ? 'move' : this.tool === 'wipe' ? 'cell' : 'crosshair';
+  }
+  bindEvents(){
+    const tb = this.toolbar;
+    tb.addEventListener('click', e => {
+      const b = e.target.closest('.pad-btn'); if(!b || b.tagName === 'LABEL') return;
+      const d = b.dataset;
+      if(d.tool) this.tool = d.tool;
+      if(d.color){ this.color = d.color; if(['eraser', 'wipe', 'move'].includes(this.tool)) this.tool = 'pen'; }
+      if(d.opt) this[d.opt] = !this[d.opt];
+      if(d.act === 'undo') this.undo();
+      if(d.act === 'redo') this.redo();
+      if(d.act === 'clear' && this.items.length){ this.clear(); toast('Tudo apagado. Use desfazer para trazer de volta.'); }
+      if(d.act === 'img') pickImageFiles(false).then(fs => { if(fs[0]) this.addImage(fs[0]); });
+      this.paintTools();
+    });
+    tb.querySelector('[data-size]').addEventListener('input', e => { this.size = +e.target.value; this.paintTools(); });
+    tb.querySelector('[data-color-custom]').addEventListener('input', e => { this.color = e.target.value; if(['eraser', 'wipe', 'move'].includes(this.tool)) this.tool = 'pen'; this.paintTools(); });
+    tb.querySelector('[data-bg]').addEventListener('change', e => { this.setBg(e.target.value); if(this.onBg) this.onBg(this.bg); });
+    const cv = this.canvas;
+    cv.addEventListener('pointerdown', e => {
+      if(e.button > 0) return;
+      if(this.textAt){ this.closeText(true); return; }
+      const p = this.pos(e);
+      if(this.tool === 'text'){ this.openText(p); e.preventDefault(); return; }
+      cv.setPointerCapture(e.pointerId);
+      if(this.tool === 'wipe'){ this.wiping = new Set(); this.wipeAt(p); return; }
+      if(this.tool === 'move'){ const it = this.topHit(p); if(it){ this.moving = {orig:it, clone:structuredClone(it), p0:p}; this.render(); } return; }
+      const t = this.tool, base = {id:padId(), ts:Date.now(), t, color:this.color};
+      this.cur = ['pen', 'marker', 'eraser'].includes(t)
+        ? {...base, size:t === 'marker' ? this.size * 3 + 8 : t === 'eraser' ? this.size * 3 + 14 : this.size, pts:[p]}
+        : {...base, size:this.size, fill:this.fill && ['rect', 'ellipse', 'tri'].includes(t), x1:p[0], y1:p[1], x2:p[0], y2:p[1]};
+      this.render();
+    });
+    cv.addEventListener('pointermove', e => {
+      if(this.wiping){ this.wipeAt(this.pos(e)); return; }
+      if(this.moving){ const p = this.pos(e), m = this.moving; m.clone = this.moved(m.orig, p[0] - m.p0[0], p[1] - m.p0[1]); m.dirty = true; this.render(); return; }
+      if(!this.cur) return;
+      const p = this.pos(e);
+      if(this.cur.pts) this.cur.pts.push(p); else { this.cur.x2 = p[0]; this.cur.y2 = p[1]; }
+      this.render(); if(this.onProgress) this.onProgress(this.cur);
+    });
+    const up = () => {
+      if(this.wiping){ const del = [...this.wiping]; this.wiping = null; if(del.length) this.do({add:[], del}); else this.render(); return; }
+      if(this.moving){ const m = this.moving; this.moving = null; if(m.dirty) this.do({add:[m.clone], del:[m.orig]}); else this.render(); return; }
+      if(!this.cur) return;
+      const it = this.cur; this.cur = null;
+      if(!it.pts && Math.hypot(it.x2 - it.x1, it.y2 - it.y1) < 3) return this.render();   // clique sem arrastar não vira forma
+      this.do({add:[it], del:[]});
+    };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    this.text.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); this.closeText(true); } if(e.key === 'Escape') this.closeText(false); });
+    this.text.addEventListener('blur', () => this.closeText(true));
+  }
+  wipeAt(p){ const it = this.topHit(p); if(it && !this.wiping.has(it)){ this.wiping.add(it); this.render(); } }
+  openText(p){
+    const s = this.scale, size = this.textSize();
+    this.textAt = {x:p[0], y:p[1], size, color:this.color, bold:this.bold};
+    Object.assign(this.text.style, {left:p[0] * s + 'px', top:(p[1] - size * .7) * s + 'px', fontSize:size * s + 'px', fontWeight:this.bold ? 700 : 500, color:this.color,
+      width:Math.max(140, (this.width - p[0]) * s - 12) + 'px'});
+    this.text.value = ''; this.text.classList.remove('hidden'); setTimeout(() => this.text.focus(), 0);
+  }
+  closeText(save){
+    if(!this.textAt) return;
+    const v = this.text.value.trim(), a = this.textAt; this.textAt = null;
+    this.text.classList.add('hidden');
+    if(save && v) this.do({add:[{id:padId(), ts:Date.now(), t:'text', color:a.color, size:a.size, bold:a.bold, x:a.x, y:a.y, text:v.slice(0, 300)}], del:[]});
+  }
 }
 
 // ---------- Janela (modal) genérica ----------
@@ -1591,7 +1939,7 @@ const TOOL_FORMS = {
   aula:{title:'Aula com o Zen', fields:[['materia', 'Matéria', 'subject'], ['tema', 'Tema da aula', 'text', 'Ex.: equação do 2º grau']],
     prompt:v => `Dê uma aula completa e didática sobre "${v.tema}" (${v.materia.nome}) para mim, um aluno do ensino médio. Estrutura em markdown: ## O que é (com exemplo do dia a dia), ## Como funciona (passo a passo, fórmulas em LaTeX $...$), ## Exemplo resolvido, ## Exercícios (3, do fácil ao difícil) e ## Gabarito comentado no fim.`,
     done:v => { STATS.aulas++; addXP(XP.aula, 'aula', v.materia); }},
-  redacao:{title:'Correção de redação', wide:true, fields:[['tema', 'Tema da redação', 'text', 'Ex.: desafios da educação digital no Brasil'], ['texto', 'Sua redação', 'area', 'Cole o texto aqui']],
+  redacao:{title:'Correção de redação', wide:true, attach:'Escreveu à mão? Mande a foto da redação em vez de colar o texto.', fields:[['tema', 'Tema da redação', 'text', 'Ex.: desafios da educação digital no Brasil'], ['texto', 'Sua redação', 'area', 'Cole o texto aqui']],
     prompt:v => `Corrija esta redação no modelo do ENEM. Tema: "${v.tema}".\n\nDê a nota de 0 a 200 em cada uma das 5 competências (numa tabela com a nota e um comentário curto), a nota total de 0 a 1000, 3 pontos fortes, os erros mais importantes com a correção, e uma versão melhorada da proposta de intervenção. Seja gentil e direto.\n\nRedação:\n${v.texto}`,
     done:() => { STATS.essays++; addXP(30, 'ferramenta'); }},
   linha:{title:'Linha do tempo', fields:[['materia', 'Matéria', 'subject', 'his'], ['tema', 'Tema', 'text', 'Ex.: Era Vargas']],
@@ -1599,7 +1947,7 @@ const TOOL_FORMS = {
   formulas:{title:'Fórmulas', fields:[['materia', 'Matéria', 'subject', 'fis'], ['tema', 'Tema', 'text', 'Ex.: cinemática']],
     prompt:v => `Faça uma folha de fórmulas de "${v.tema}" (${v.materia.nome}) para eu revisar: para cada fórmula, um título curto, a fórmula em LaTeX numa linha própria ($$...$$), o que cada símbolo significa (com unidade) e quando usar. No fim, 2 erros comuns.`},
   plano:{title:'Plano até a prova', fields:[['prova', 'Que prova?', 'text', 'Ex.: prova bimestral de Biologia'], ['data', 'Data da prova', 'date'], ['conteudo', 'Conteúdos', 'area', 'Ex.: citologia, mitose, meiose'], ['horas', 'Tempo por dia', 'select', ['30 min', '1 hora', '2 horas']]],
-    json:true,
+    json:true, attach:'Foto da lista de conteúdos ou do caderno (opcional).',
     prompt:v => `Hoje é ${dayKey()}. Monte um plano de estudo até a prova "${v.prova}" no dia ${v.data}, com ${v.horas} por dia. Conteúdos: ${v.conteudo}. Use revisão espaçada, deixe a véspera leve e inclua um simulado antes da prova.
 Formato: {"plano":"o plano em markdown (uma tabela | Dia | O que fazer |) e 3 dicas","metas":[{"data":"AAAA-MM-DD","texto":"meta curta do dia"}]}`}
 };
@@ -1608,7 +1956,7 @@ function openTool(id){
   if(id === 'tutor') return openTutor();
   const T = TOOL_FORMS[id];
   const field = ([key, label, type, extra]) => {
-    const base = `id="tf-${key}" ${type !== 'select' ? 'required' : ''}`;
+    const base = `id="tf-${key}" ${type === 'date' ? 'required' : ''}`;
     const ctl = type === 'subject' ? `<select ${base} class="${fieldCls} mt-1 font-normal">${subjectOptions(extra || 'mat')}</select>`
       : type === 'area' ? `<textarea ${base} rows="${id === 'redacao' ? 12 : 3}" class="${fieldCls} mt-1 font-normal" placeholder="${extra || ''}"></textarea>`
       : type === 'select' ? `<select ${base} class="${fieldCls} mt-1 font-normal">${extra.map(o => `<option>${o}</option>`).join('')}</select>`
@@ -1618,31 +1966,37 @@ function openTool(id){
   openModal(`${modalHead(T.title)}
     <form id="tf-form" class="mt-4 space-y-3.5" autocomplete="off">
       ${T.fields.map(field).join('')}
+      ${attachHTML('tf-att', T.attach)}
       <p id="tf-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="tf-go" class="${btnPrimary}">Pedir ao Zen</button></div>
     </form>`, T.wide);
+  const att = bindAttach('tf-att');
   document.getElementById('tf-form').addEventListener('submit', async e => {
     e.preventDefault();
     const v = {};
     T.fields.forEach(([key, , type]) => { const el = document.getElementById(`tf-${key}`); v[key] = type === 'subject' ? subjectOf(el.value) : el.value.trim(); });
     const b = document.getElementById('tf-go'), st = document.getElementById('tf-status');
+    // com foto, os campos de texto viram opcionais (o Zen lê o conteúdo na imagem)
+    const blank = T.fields.filter(([key, , type]) => (type === 'text' || type === 'area') && !v[key]);
+    if(blank.length && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = `Preencha ${blank.map(f => `"${f[1]}"`).join(' e ')} ou mande uma foto.`; return; }
+    const raw = {...v}; blank.forEach(([key]) => { v[key] = 'o conteúdo da foto anexada'; });
     b.disabled = true; b.innerHTML = `${spinner} O Zen está preparando...`; st.textContent = '';
     try{
       STATS.toolUses++;
       let text, extra = [];
       if(T.json){
-        const d = await askGeminiJSON(T.prompt(v), zenSystemPrompt());
+        const d = await askGeminiJSON(T.prompt(v), zenSystemPrompt(), att.images);
         text = d.plano || ''; const metas = (d.metas || []).filter(m => /^\d{4}-\d{2}-\d{2}$/.test(m.data) && m.texto);
         extra = [{label:'Pôr a prova e as metas no calendário', fn:() => {
-          if(v.data) EVENTS.push({d:v.data, t:v.prova, tipo:'prova'});
+          if(v.data) EVENTS.push({d:v.data, t:raw.prova || 'Prova', tipo:'prova'});
           metas.forEach(m => addGoal(m.data, m.texto));
           renderCal(); scheduleChecks(); toast(`Prova e ${metas.length} metas no calendário.`);
         }}];
-      } else text = (await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[{text:T.prompt(v)}]}]})).text;
+      } else text = (await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[...imgParts(att.images), {text:T.prompt(v) + imgHint(att.images)}]}]})).text;
       addXP(XP.ferramenta, 'ferramenta', v.materia); if(T.done) T.done(v); saveStats();
       closeModal();
-      showZenResult({title:`${T.title}${v.tema ? `: ${v.tema}` : v.prova ? `: ${v.prova}` : ''}`, text, subject:v.materia, icon:'🧰', extra,
-        chatPrompt:`Sobre ${v.tema || v.prova || 'isso'}: pode me explicar a parte mais difícil de outro jeito e me fazer 2 perguntas?`});
+      showZenResult({title:`${T.title}${raw.tema ? `: ${raw.tema}` : raw.prova ? `: ${raw.prova}` : att.images.length ? ' da foto' : ''}`, text, subject:v.materia, icon:'🧰', extra,
+        chatPrompt:`Sobre ${raw.tema || raw.prova || 'isso'}: pode me explicar a parte mais difícil de outro jeito e me fazer 2 perguntas?`});
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Pedir ao Zen'; }
   });
 }
@@ -1650,15 +2004,17 @@ function openTool(id){
 function openTutor(){
   openModal(`${modalHead('Tutor passo a passo')}
     <form id="tt-form" class="mt-4 space-y-3.5" autocomplete="off">
-      <label class="block text-[13.5px] font-semibold text-ink-2">Cole o exercício ou a dúvida<textarea id="tt-q" rows="6" required class="${fieldCls} mt-1 font-normal" placeholder="Ex.: Resolva x² − 5x + 6 = 0"></textarea></label>
+      <label class="block text-[13.5px] font-semibold text-ink-2">Cole o exercício ou a dúvida <span class="font-normal text-muted">(ou mande a foto)</span><textarea id="tt-q" rows="5" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: Resolva x² − 5x + 6 = 0"></textarea></label>
+      ${attachHTML('tt-att', 'Foto do exercício: o Zen lê e te guia passo a passo.')}
       <p class="text-[13.5px] text-muted">O Zen não entrega a resposta de cara: ele guia com uma dica de cada vez, e você tenta.</p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button class="${btnPrimary}">Começar no chat</button></div>
     </form>`);
+  const att = bindAttach('tt-att');
   document.getElementById('tt-form').addEventListener('submit', e => {
     e.preventDefault();
-    const q = document.getElementById('tt-q').value.trim(); if(!q) return;
+    const q = document.getElementById('tt-q').value.trim() || (att.images.length ? 'O exercício está na foto.' : ''); if(!q) return document.getElementById('tt-q').focus();
     STATS.toolUses++; addXP(XP.ferramenta, 'ferramenta'); closeModal(); location.hash = 'chat';
-    sendChat(`Seja meu tutor neste exercício. NÃO me dê a resposta final: me guie com uma dica de cada vez, espere eu responder e corrija com calma.\n\n${q}`);
+    sendChat(`Seja meu tutor neste exercício. NÃO me dê a resposta final: me guie com uma dica de cada vez, espere eu responder e corrija com calma.\n\n${q}`, att.images);
   });
 }
 document.querySelector('[data-screen="ferramentas"]').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if(b) openTool(b.dataset.tool); });
@@ -1810,6 +2166,7 @@ function openSummaryEditor(k, j, preset){
         <p class="flex-1 min-w-[200px] text-[14px] text-forest-700">Escreva o tema e deixe o Zen montar o resumo. Você revisa antes de salvar.</p>
         <button type="button" id="se-ai" class="${btnPrimary} !py-2 !text-[14px]">Escrever com o Zen</button>
       </div>
+      ${attachHTML('se-att', 'Foto do caderno, do livro ou da lousa: o Zen resume o que estiver nela.')}
       <div>
         <div class="flex items-center justify-between">
           <span class="text-[13.5px] font-semibold text-ink-2">Conteúdo <span class="font-normal text-muted">(markdown: **negrito**, - lista, # título, $fórmula$)</span></span>
@@ -1825,7 +2182,7 @@ function openSummaryEditor(k, j, preset){
       </div>
     </form>`, true);
   const status = (t, bad) => { const s = document.getElementById('se-status'); s.textContent = t; s.className = `text-[14px] min-h-[1.4em] ${bad ? 'text-[#B4472F]' : 'text-ink-2'}`; };
-  const area = document.getElementById('se-content'), prev = document.getElementById('se-preview');
+  const area = document.getElementById('se-content'), prev = document.getElementById('se-preview'), att = bindAttach('se-att');
   document.getElementById('se-prev-btn').addEventListener('click', e => {
     const showing = prev.classList.toggle('hidden') === false;
     area.classList.toggle('hidden', showing);
@@ -1834,10 +2191,10 @@ function openSummaryEditor(k, j, preset){
   });
   document.getElementById('se-ai').addEventListener('click', async e => {
     const tema = document.getElementById('se-title').value.trim(), s = subjectOf(document.getElementById('se-subj').value);
-    if(!tema){ status('Escreva o tema primeiro.', true); document.getElementById('se-title').focus(); return; }
+    if(!tema && !att.images.length){ status('Escreva o tema ou mande uma foto.', true); document.getElementById('se-title').focus(); return; }
     const b = e.currentTarget; b.disabled = true; b.innerHTML = `${spinner} Escrevendo...`; status('');
     try{
-      const d = await askGeminiJSON(`Crie um resumo de estudo objetivo e bem organizado sobre "${tema}", para a matéria "${s.nome}", focado no que cai em prova (ensino médio, Brasil). Use tópicos com "-", **negrito** nos termos-chave, fórmulas em LaTeX ($...$) e, se ajudar, uma tabela simples. Termine com uma linha "**Para lembrar na prova:** ...". Formato: {"title":"...","content":"..."}`, zenSystemPrompt());
+      const d = await askGeminiJSON(`Crie um resumo de estudo objetivo e bem organizado sobre "${tema || 'o conteúdo das fotos anexadas'}", para a matéria "${s.nome}", focado no que cai em prova (ensino médio, Brasil). Use tópicos com "-", **negrito** nos termos-chave, fórmulas em LaTeX ($...$) e, se ajudar, uma tabela simples. Termine com uma linha "**Para lembrar na prova:** ...". Formato: {"title":"...","content":"..."}`, zenSystemPrompt(), att.images);
       if(d.title) document.getElementById('se-title').value = d.title;
       area.value = d.content || '';
       if(!prev.classList.contains('hidden')){ prev.innerHTML = md(area.value); renderMath(prev); }
@@ -2004,12 +2361,12 @@ function addCards(list){
 }
 // O Zen cria cartões sobre um tema (ou a partir de um resumo)
 // k pode ser null: aí o Zen diz de que matéria é (usado pelo chat)
-async function generateCards(k, tema, base, n){
+async function generateCards(k, tema, base, n, images){
   const given = subjectOf(k);
   const d = await askGeminiJSON(`Crie ${n} flashcards de estudo (pergunta curta na frente e resposta objetiva no verso) para um aluno do ensino médio brasileiro sobre "${tema}"${given ? ` (${given.nome})` : ''}.
 ${base || ''}
 ${given ? '' : 'Em "materia" coloque o nome curto da matéria escolar relacionada. '}Formato: {"materia":"...","cartoes":[{"frente":"...","verso":"..."}]}.
-Português do Brasil. Fórmulas em LaTeX entre $...$.`);
+Português do Brasil. Fórmulas em LaTeX entre $...$.`, undefined, images);
   const s = given || SUBJECTS.find(x => plain(x.nome) === plain(d.materia || '')) || SUBJECTS[0];
   const cards = (d.cartoes || d.cards || d.flashcards || []).filter(c => c && (c.frente || c.front) && (c.verso || c.back)).slice(0, 15).map(c => ({f:String(c.frente || c.front).trim(), v:String(c.verso || c.back).trim(), k:s.k}));
   if(!cards.length) throw new ZenError('json');
@@ -2036,18 +2393,21 @@ function openCardGenerator(){
     <form id="cg-form" class="mt-4 space-y-3.5" autocomplete="off">
       <div class="grid sm:grid-cols-[180px_minmax(0,1fr)] gap-3">
         <label class="text-[13.5px] font-semibold text-ink-2">Matéria<select id="cg-subj" class="${fieldCls} mt-1 font-normal">${subjectOptions('bio')}</select></label>
-        <label class="text-[13.5px] font-semibold text-ink-2">Tema<input id="cg-tema" class="${fieldCls} mt-1 font-normal" required placeholder="Ex.: sistema nervoso"></label>
+        <label class="text-[13.5px] font-semibold text-ink-2">Tema<input id="cg-tema" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: sistema nervoso"></label>
       </div>
       <label class="block text-[13.5px] font-semibold text-ink-2">Quantos cartões<select id="cg-n" class="${fieldCls} mt-1 font-normal"><option>5</option><option selected>8</option><option>12</option></select></label>
+      ${attachHTML('cg-att', 'Foto do caderno ou do livro: o Zen cria os cartões a partir dela.')}
       <p id="cg-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="cg-go" class="${btnPrimary}">Gerar cartões</button></div>
     </form>`);
+  const att = bindAttach('cg-att');
   document.getElementById('cg-form').addEventListener('submit', async e => {
     e.preventDefault();
-    const b = document.getElementById('cg-go'), st = document.getElementById('cg-status');
+    const b = document.getElementById('cg-go'), st = document.getElementById('cg-status'), tema = document.getElementById('cg-tema').value.trim();
+    if(!tema && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o tema ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} Gerando...`; st.className = 'text-[14px] min-h-[1.4em] text-ink-2'; st.textContent = '';
     try{
-      const n = await generateCards(document.getElementById('cg-subj').value, document.getElementById('cg-tema').value.trim(), '', +document.getElementById('cg-n').value);
+      const n = await generateCards(document.getElementById('cg-subj').value, tema || 'o conteúdo das fotos anexadas', '', +document.getElementById('cg-n').value, att.images);
       closeModal(); toast(`${n} cartões criados. Bora revisar!`);
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar cartões'; }
   });
@@ -2119,6 +2479,7 @@ function tabelaHTML(t){
     <tbody>${t.linhas.map(r => `<tr>${(Array.isArray(r) ? r : [r]).map(c => `<td class="px-3 py-2 border-t border-line">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function renderAlts(){
+  document.getElementById('sk-zen').classList.toggle('hidden', sim.answers[sim.i] == null);
   const Q = simQ(), ans = sim.answers[sim.i], done = ans != null, sel = done ? ans : sim.sel, last = sim.i === sim.data.questoes.length - 1;
   document.getElementById('sim-alts').innerHTML = '<legend class="sr-only">Alternativas</legend>' + Q.alternativas.map((a, k) => {
     const chosen = sel === k, right = done && k === Q.correta, wrong = done && chosen && !right;
@@ -2246,7 +2607,7 @@ function startSimFromBank(list, titulo){
 }
 function resetSim(data){
   Object.assign(sim, {data, i:0, answers:[], sel:null, left:data.tempo || data.questoes.length * 180, finished:false});
-  sketch.strokes = []; redrawSketch();
+  clearSketch();
   saveSim(); renderSim(); document.getElementById('main').scrollTop = 0;
 }
 function pickAlt(k){ if(sim.finished || sim.answers[sim.i] != null || k >= simQ().alternativas.length) return; sim.sel = k; renderAlts(); }
@@ -2267,7 +2628,7 @@ document.getElementById('sim-answer').addEventListener('click', () => {
   }
   if(sim.i === sim.data.questoes.length - 1) return finishSim();
   sim.i++; sim.sel = null; saveSim();
-  sketch.strokes = []; redrawSketch();
+  clearSketch();
   renderSim();
   document.getElementById('main').scrollTop = 0;
 });
@@ -2308,10 +2669,12 @@ function openSimGenerator(){
         <label class="text-[13.5px] font-semibold text-ink-2">Questões<select id="sg-n" class="${fieldCls} mt-1 font-normal"><option>5</option><option selected>10</option><option>15</option></select></label>
         <label class="text-[13.5px] font-semibold text-ink-2">Dificuldade<select id="sg-dif" class="${fieldCls} mt-1 font-normal"><option>Fácil</option><option selected>Médio</option><option>Difícil</option></select></label>
       </div>
+      ${attachHTML('sg-att', 'Foto de uma prova antiga ou do conteúdo: o simulado sai no mesmo estilo.')}
       <p class="text-[13px] text-muted">Você terá 3 minutos por questão. O Zen pode levar uns segundos para montar tudo.</p>
       <p id="sg-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="sg-go" class="${btnPrimary}">Criar simulado</button></div>
     </form>`);
+  const att = bindAttach('sg-att');
   document.getElementById('sg-form').addEventListener('submit', async e => {
     e.preventDefault();
     const mat = document.getElementById('sg-mat').value, estilo = document.getElementById('sg-estilo').value, tema = document.getElementById('sg-tema').value.trim();
@@ -2319,7 +2682,7 @@ function openSimGenerator(){
     const b = document.getElementById('sg-go'), st = document.getElementById('sg-status');
     b.disabled = true; b.innerHTML = `${spinner} Montando...`; st.className = 'text-[14px] min-h-[1.4em] text-ink-2'; st.textContent = '';
     try{
-      const qs = await generateQuestions({subject:mat ? SUBJECTS.find(s => s.nome === mat) : null, tema, n, dif, fonte:estilo});
+      const qs = await generateQuestions({subject:mat ? SUBJECTS.find(s => s.nome === mat) : null, tema:tema || (att.images.length ? 'o conteúdo das fotos anexadas' : ''), n, dif, fonte:estilo, images:att.images});
       closeModal();
       startSimFromBank(qs, `Simulado ${estilo}${mat ? ` de ${mat}` : ''}`);
       toast(`Simulado com ${qs.length} questões pronto. Boa prova!`);
@@ -2337,74 +2700,47 @@ setInterval(() => {
   if(sim.left === 0){ toast('O tempo acabou. Veja como você foi.'); finishSim(); }
 }, 1000);
 
-// Rascunho: desenho livre com lápis, borracha, 3 cores, desfazer e limpar
-const SKETCH_COLORS = [['#1E2A1B', 'Preto'], ['#4A7A42', 'Verde'], ['#E07B2C', 'Laranja']];
-const sketch = {mode:'pen', color:SKETCH_COLORS[0][0], strokes:[], cur:null};
-// rabisco inicial parecido com o da imagem (eixos + parábola), em coordenadas de 0 a 1
-sketch.strokes.push({color:'#1E2A1B', pts:[[.08, .64], [.93, .64]]}, {color:'#1E2A1B', pts:[[.3, .06], [.3, .95]]});
-sketch.strokes.push({color:'#1E2A1B', pts:Array.from({length:31}, (_, k) => { const t = k / 15 - 1; return [.3 + (t + 1) * .3, .12 + (1 - t * t) * .6 + Math.sin(k * 1.7) * .004]; })});
-
-const toolBtn = (attr, label, inner) => `<button type="button" ${attr} class="sk-btn w-9 h-9 rounded-lg grid place-items-center text-ink-2 hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="${label}" title="${label}">${inner}</button>`;
-document.getElementById('sim-tools').innerHTML =
-  toolBtn('data-mode="pen"', 'Lápis', '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z"/></svg>') +
-  toolBtn('data-mode="eraser"', 'Borracha', '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4-4L14 6l6 6-9 9z"/><path d="M7 21h13M9 11l6 6"/></svg>') +
-  '<span class="w-px h-5 bg-[#DDD8CB] mx-1"></span>' +
-  SKETCH_COLORS.map(([c, n]) => toolBtn(`data-color="${c}"`, `Cor ${n.toLowerCase()}`, `<span class="w-4 h-4 rounded-full" style="background:${c}"></span>`)).join('') +
-  '<span class="flex-1"></span>' +
-  toolBtn('data-act="undo"', 'Desfazer', '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>') +
-  toolBtn('data-act="clear"', 'Apagar tudo', '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>');
-
-function paintTools(){
-  document.querySelectorAll('#sim-tools .sk-btn').forEach(b => {
-    const on = b.dataset.mode === sketch.mode || (sketch.mode === 'pen' && b.dataset.color === sketch.color);
-    b.classList.toggle('bg-paper', on); b.classList.toggle('shadow-card', on); b.classList.toggle('text-forest-700', on);
-    if(b.dataset.mode || b.dataset.color) b.setAttribute('aria-pressed', on);
+// Rascunho: o mesmo motor do quadro (lápis, formas, texto, cores, espessura e fundo), com tamanho ajustável
+const SK_SIZES = {p:{grid:'lg:grid-cols-[minmax(0,1fr)_300px]', h:300}, m:{grid:'lg:grid-cols-[minmax(0,1fr)_420px]', h:420}, g:{grid:'lg:grid-cols-1', h:460}};
+const skPref = Object.assign({size:'p', h:0, bg:'quadriculado'}, store.get('rascunho', {}));
+const sketch = new Pad({canvas:document.getElementById('sim-canvas'), toolbar:document.getElementById('sim-tools'), compact:true, size:3, textBase:12, textStep:2.5, bg:skPref.bg,
+  onBg:k => { skPref.bg = k; store.set('rascunho', skPref); }});
+const skWrap = document.getElementById('sk-wrap');
+function setSketchSize(k, keepH){
+  skPref.size = SK_SIZES[k] ? k : 'p';
+  const grid = document.getElementById('sim-grid');
+  Object.values(SK_SIZES).forEach(s => grid.classList.remove(s.grid));
+  grid.classList.add(SK_SIZES[skPref.size].grid);
+  if(!keepH) skPref.h = 0;
+  skWrap.style.height = (skPref.h || SK_SIZES[skPref.size].h) + 'px';
+  document.querySelectorAll('[data-sk-size]').forEach(b => {
+    const on = b.dataset.skSize === skPref.size;
+    b.setAttribute('aria-pressed', on); b.classList.toggle('bg-paper', on); b.classList.toggle('shadow-card', on); b.classList.toggle('text-forest-700', on);
   });
+  store.set('rascunho', skPref);
 }
-const canvas = document.getElementById('sim-canvas'), ctx = canvas.getContext('2d');
-function drawStroke(s, w, h){
-  ctx.save();
-  ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-  ctx.strokeStyle = s.color; ctx.lineWidth = s.erase ? 18 : 2.4; ctx.lineCap = ctx.lineJoin = 'round';
-  ctx.beginPath();
-  s.pts.forEach(([x, y], k) => k ? ctx.lineTo(x * w, y * h) : ctx.moveTo(x * w, y * h));
-  if(s.pts.length === 1) ctx.lineTo(s.pts[0][0] * w + .1, s.pts[0][1] * h);
-  ctx.stroke(); ctx.restore();
-}
-function redrawSketch(){
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  ctx.clearRect(0, 0, w, h);
-  sketch.strokes.forEach(s => drawStroke(s, w, h));
-}
-function sizeSketch(){
-  const r = canvas.getBoundingClientRect(); if(!r.width) return;
-  const d = window.devicePixelRatio || 1;
-  canvas.width = Math.round(r.width * d); canvas.height = Math.round(r.height * d);
-  ctx.setTransform(d, 0, 0, d, 0, 0);
-  redrawSketch();
-}
-new ResizeObserver(sizeSketch).observe(canvas);
-const rel = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
-canvas.addEventListener('pointerdown', e => {
-  sketch.cur = {color:sketch.color, erase:sketch.mode === 'eraser', pts:[rel(e)]};
-  sketch.strokes.push(sketch.cur);
-  canvas.setPointerCapture(e.pointerId);
-  redrawSketch();
+document.getElementById('sk-size').addEventListener('click', e => { const b = e.target.closest('[data-sk-size]'); if(b) setSketchSize(b.dataset.skSize); });
+// arrastar o canto de baixo do rascunho muda a altura (fica salva para os próximos simulados)
+new ResizeObserver(() => {
+  const h = skWrap.offsetHeight;
+  if(h && h !== (skPref.h || SK_SIZES[skPref.size].h)){ skPref.h = h; store.set('rascunho', skPref); }
+}).observe(skWrap);
+setSketchSize(skPref.size, true);
+const clearSketch = () => sketch.setItems([]);
+// depois de responder, o Zen confere a conta feita no rascunho
+const SK_ZEN_LABEL = '<svg class="w-[18px] h-[18px]" aria-hidden="true"><use href="#zen-head"/></svg>Zen, confere meu rascunho';
+document.getElementById('sk-zen').addEventListener('click', async e => {
+  const q = simQ(), marcada = sim.answers[sim.i], L = 'ABCDE'; if(!q || marcada == null) return;
+  const b = e.currentTarget; b.disabled = true; b.innerHTML = `${spinner} O Zen está olhando...`;
+  try{
+    const parts = sketch.items.length ? [{inlineData:{mimeType:'image/png', data:sketch.toPNG().split(',')[1]}}] : [];
+    const r = await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[...parts, {text:`Questão do simulado:\n${q.enunciado}\n\nAlternativas:\n${q.alternativas.map((a, k) => `${L[k]}) ${a}`).join('\n')}\n\nEu marquei ${L[marcada]} e a correta é ${L[q.correta]}.\n${parts.length ? 'A imagem anexada é o meu rascunho, com a conta que eu fiz.' : 'Não usei o rascunho.'}\nConfira o meu raciocínio${parts.length ? ' no rascunho' : ''}: o que fiz certo, onde errei (se errei) e a resolução certa passo a passo, curta. Use LaTeX ($...$).`}]}]});
+    STATS.toolUses++; addXP(XP.ferramenta, 'ferramenta', subjectOf(q.k));
+    showZenResult({title:'O Zen conferiu seu rascunho', text:r.text, subject:subjectOf(q.k), icon:'📝', chatPrompt:'Sobre essa questão do simulado: pode me passar outra parecida para eu treinar?'});
+  }catch(err){ toast(zenErrorText(err)); }
+  b.disabled = false; b.innerHTML = SK_ZEN_LABEL;
 });
-canvas.addEventListener('pointermove', e => { if(sketch.cur){ sketch.cur.pts.push(rel(e)); redrawSketch(); } });
-['pointerup', 'pointercancel'].forEach(t => canvas.addEventListener(t, () => sketch.cur = null));
-document.getElementById('sim-tools').addEventListener('click', e => {
-  const b = e.target.closest('.sk-btn'); if(!b) return;
-  if(b.dataset.mode) sketch.mode = b.dataset.mode;
-  if(b.dataset.color){ sketch.color = b.dataset.color; sketch.mode = 'pen'; }
-  if(b.dataset.act === 'undo'){ sketch.strokes.pop(); redrawSketch(); }
-  if(b.dataset.act === 'clear'){ sketch.strokes = []; redrawSketch(); }
-  paintTools();
-});
-paintTools();
 renderSim();
-// um simulado salvo que não é o de exemplo começa com o rascunho limpo
-sketch.strokes = []; redrawSketch();
 
 const subjectByName = n => SUBJECTS.find(s => s.nome === n);
 const selectBox = (id, label, options) => `<label class="relative min-w-0">
@@ -2436,10 +2772,10 @@ function sanitizeQuestions(list, base){
   }).filter(q => q.q && q.alts.length >= 4 && Number.isInteger(q.certa) && q.certa >= 0 && q.certa < q.alts.length);
 }
 // pede questões ao Zen (prompt do app original, no estilo de prova com 5 alternativas)
-async function generateQuestions({subject, tema, n, dif, fonte}){
+async function generateQuestions({subject, tema, n, dif, fonte, images}){
   const d = await askGeminiJSON(`Crie ${n} questões de múltipla escolha no estilo ${fonte || 'ENEM'} (5 alternativas cada, só uma correta), de nível "${dif}", sobre "${tema || 'conteúdos variados'}", matéria "${subject ? subject.nome : 'misture as matérias do ENEM'}", para um aluno do ensino médio brasileiro.
 Enunciado contextualizado e claro. Varie a posição da alternativa correta. "correta" é o índice (0 a 4) da correta e "explicacao" explica o raciocínio em poucas linhas. Fórmulas em LaTeX entre $...$. Se precisar de dados, use "tabela" (senão, null).
-Formato: {"questoes":[{"materia":"...","tema":"assunto curto","enunciado":"...","tabela":{"cabecalho":["..."],"linhas":[["..."]]},"alternativas":["...","...","...","...","..."],"correta":0,"explicacao":"..."}]}`, zenSystemPrompt());
+Formato: {"questoes":[{"materia":"...","tema":"assunto curto","enunciado":"...","tabela":{"cabecalho":["..."],"linhas":[["..."]]},"alternativas":["...","...","...","...","..."],"correta":0,"explicacao":"..."}]}`, zenSystemPrompt(), images);
   const qs = sanitizeQuestions(d.questoes || d.questions, {subject, tema, dif, fonte});
   if(!qs.length) throw new ZenError('json');
   QUESTIONS.push(...qs); saveQuestions(); scheduleChecks();
@@ -2546,20 +2882,23 @@ function openQuestionGenerator(after){
         <label class="text-[13.5px] font-semibold text-ink-2">Matéria<select id="qg-mat" class="${fieldCls} mt-1 font-normal">${materias}</select></label>
         <label class="text-[13.5px] font-semibold text-ink-2">Estilo<select id="qg-fonte" class="${fieldCls} mt-1 font-normal"><option>ENEM</option><option>FUVEST</option><option>UNICAMP</option><option>UERJ</option><option value="prova da escola">Prova da escola</option></select></label>
       </div>
-      <label class="block text-[13.5px] font-semibold text-ink-2">Assunto<input id="qg-tema" class="${fieldCls} mt-1 font-normal" required placeholder="Ex.: estequiometria"></label>
+      <label class="block text-[13.5px] font-semibold text-ink-2">Assunto<input id="qg-tema" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: estequiometria"></label>
       <div class="grid grid-cols-2 gap-3">
         <label class="text-[13.5px] font-semibold text-ink-2">Quantas<select id="qg-n" class="${fieldCls} mt-1 font-normal"><option>3</option><option selected>5</option><option>10</option></select></label>
         <label class="text-[13.5px] font-semibold text-ink-2">Dificuldade<select id="qg-dif" class="${fieldCls} mt-1 font-normal">${DIFS.map(d => `<option ${d === 'Médio' ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
       </div>
+      ${attachHTML('qg-att', 'Foto de uma prova, lista ou página do livro: o Zen cria questões parecidas.')}
       <p id="qg-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="qg-go" class="${btnPrimary}">Gerar questões</button></div>
     </form>`);
+  const att = bindAttach('qg-att');
   document.getElementById('qg-form').addEventListener('submit', async e => {
     e.preventDefault();
     const b = document.getElementById('qg-go'), st = document.getElementById('qg-status');
+    if(!qVal('qg-tema').trim() && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o assunto ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} O Zen está escrevendo...`; st.textContent = '';
     try{
-      const qs = await generateQuestions({subject:subjectOf(qVal('qg-mat')), tema:qVal('qg-tema').trim(), n:+qVal('qg-n'), dif:qVal('qg-dif'), fonte:qVal('qg-fonte')});
+      const qs = await generateQuestions({subject:subjectOf(qVal('qg-mat')), tema:qVal('qg-tema').trim() || 'o conteúdo das fotos anexadas', n:+qVal('qg-n'), dif:qVal('qg-dif'), fonte:qVal('qg-fonte'), images:att.images});
       closeModal(); toast(`${qs.length} questões novas no banco.`);
       if(after) after(qs); else { ['q-search', 'q-topic', 'q-diff', 'q-status'].forEach(id => document.getElementById(id).value = ''); renderQuestions(); document.getElementById('q-subject').value = qs[0].k; renderQuestions(); }
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar questões'; }
@@ -3276,16 +3615,20 @@ function openZenWriter(line){
   const n = ntNote(); if(!n) return;
   openModal(`${modalHead('Pedir ao Zen')}
     <form id="zw-form" class="mt-4 space-y-3" autocomplete="off">
-      <label class="block text-[13.5px] font-semibold text-ink-2">O que o Zen deve escrever aqui?<textarea id="zw-want" rows="3" required class="${fieldCls} mt-1 font-normal" placeholder="Ex.: uma tabela comparando mitose e meiose"></textarea></label>
+      <label class="block text-[13.5px] font-semibold text-ink-2">O que o Zen deve escrever aqui?<textarea id="zw-want" rows="3" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: uma tabela comparando mitose e meiose, ou: passa a limpo a foto do caderno"></textarea></label>
+      ${attachHTML('zw-att', 'Foto do caderno ou da lousa: o Zen passa a limpo, resume ou explica.')}
       <p id="zw-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button id="zw-go" class="${btnPrimary}">Escrever</button></div>
     </form>`);
+  const att = bindAttach('zw-att');
   document.getElementById('zw-form').addEventListener('submit', async e => {
     e.preventDefault();
     const b = document.getElementById('zw-go'), st = document.getElementById('zw-status');
+    const want = document.getElementById('zw-want').value.trim() || (att.images.length ? 'Passe a limpo o conteúdo da foto, organizado, com títulos e tópicos.' : '');
+    if(!want){ document.getElementById('zw-want').focus(); return; }
     b.disabled = true; b.innerHTML = `${spinner} Escrevendo...`;
     try{
-      const r = await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[{text:`Você está escrevendo dentro da anotação "${n.title || 'Sem título'}".\nConteúdo atual da anotação, para contexto:\n${noteToText()}\n\nPedido do ${ME.nome}: ${document.getElementById('zw-want').value.trim()}\n\nResponda SOMENTE com o conteúdo a ser inserido, em markdown (pode usar ## títulos, tabelas, listas, "- [ ]" para tarefas e fórmulas $...$ ou $$...$$). Não repita o título da anotação.`}]}]});
+      const r = await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[...imgParts(att.images), {text:`Você está escrevendo dentro da anotação "${n.title || 'Sem título'}".\nConteúdo atual da anotação, para contexto:\n${noteToText()}\n\nPedido do ${ME.nome}: ${want}${imgHint(att.images)}\n\nResponda SOMENTE com o conteúdo a ser inserido, em markdown (pode usar ## títulos, tabelas, listas, "- [ ]" para tarefas e fórmulas $...$ ou $$...$$). Não repita o título da anotação.`}]}]});
       const box = document.createElement('div'); box.innerHTML = mdToNoteHTML(r.text);
       const top = line && line.closest('#nt-editor') ? (line.closest('#nt-editor > *') || line) : null;
       const nodes = [...box.childNodes];
@@ -3415,9 +3758,10 @@ function openMapCreator(){
     <form id="mc-form" class="mt-4 space-y-3.5" autocomplete="off">
       <div class="grid sm:grid-cols-[180px_minmax(0,1fr)] gap-3">
         <label class="text-[13.5px] font-semibold text-ink-2">Matéria<select id="mc-subj" class="${fieldCls} mt-1 font-normal">${subjectOptions('bio')}</select></label>
-        <label class="text-[13.5px] font-semibold text-ink-2">Tema central<input id="mc-tema" class="${fieldCls} mt-1 font-normal" required placeholder="Ex.: Sistema nervoso"></label>
+        <label class="text-[13.5px] font-semibold text-ink-2">Tema central<input id="mc-tema" class="${fieldCls} mt-1 font-normal" placeholder="Ex.: Sistema nervoso"></label>
       </div>
       <label class="block text-[13.5px] font-semibold text-ink-2">Ramos <span class="font-normal text-muted">(opcional: um por linha, até 6; deixe vazio para o Zen decidir)</span><textarea id="mc-ramos" rows="4" class="${fieldCls} mt-1 font-normal" placeholder="Funções&#10;Divisões&#10;Estruturas"></textarea></label>
+      ${attachHTML('mc-att', 'Foto do caderno ou do livro: o Zen monta o mapa a partir dela.')}
       <p id="mc-status" class="text-[14px] min-h-[1.4em]" aria-live="polite"></p>
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" data-close class="${btnSoft}">Cancelar</button>
@@ -3426,6 +3770,7 @@ function openMapCreator(){
       </div>
     </form>`);
   const tema = () => document.getElementById('mc-tema').value.trim(), ramos = () => document.getElementById('mc-ramos').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 6);
+  const att = bindAttach('mc-att');
   document.getElementById('mc-blank').addEventListener('click', () => {
     if(!tema()) return document.getElementById('mc-tema').focus();
     const rs = ramos(); if(!rs.length){ const st = document.getElementById('mc-status'); st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Para começar em branco, escreva pelo menos um ramo.'; return; }
@@ -3434,12 +3779,13 @@ function openMapCreator(){
   document.getElementById('mc-form').addEventListener('submit', async e => {
     e.preventDefault();
     const b = document.getElementById('mc-go'), st = document.getElementById('mc-status'), k = document.getElementById('mc-subj').value, rs = ramos();
+    if(!tema() && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o tema central ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} Montando...`; st.textContent = '';
     try{
-      const d = await askGeminiJSON(`Monte um mapa mental de estudo sobre "${tema()}" (matéria "${subjectOf(k).nome}"). ${rs.length ? `Use exatamente estes ramos principais: ${rs.join('; ')}.` : 'Use de 4 a 6 ramos principais'}, cada um com 2 a 4 subtópicos curtíssimos (no máximo 5 palavras cada). Fórmulas, se houver, em LaTeX entre $...$. Formato: {"central":"...","branches":[{"title":"...","children":["...","..."]}]}`);
+      const d = await askGeminiJSON(`Monte um mapa mental de estudo sobre "${tema() || 'o conteúdo das fotos anexadas'}" (matéria "${subjectOf(k).nome}"). ${rs.length ? `Use exatamente estes ramos principais: ${rs.join('; ')}.` : 'Use de 4 a 6 ramos principais'}, cada um com 2 a 4 subtópicos curtíssimos (no máximo 5 palavras cada). Fórmulas, se houver, em LaTeX entre $...$. Formato: {"central":"...","branches":[{"title":"...","children":["...","..."]}]}`, undefined, att.images);
       const ramosZen = (d.branches || []).filter(x => x && x.title).map(x => ({t:x.title, itens:x.children || []}));
       if(!ramosZen.length) throw new ZenError('json');
-      const nome = tema(); closeModal(); addMap(nome, k, d.central || nome, ramosZen); toast('Mapa pronto! Toque num ramo para recolher ou peça mais subtópicos ao Zen.');
+      const nome = tema() || String(d.central || 'Mapa da foto').slice(0, 60); closeModal(); addMap(nome, k, d.central || nome, ramosZen); toast('Mapa pronto! Toque num ramo para recolher ou peça mais subtópicos ao Zen.');
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar com o Zen'; }
   });
 }
@@ -3494,28 +3840,9 @@ document.getElementById('mm-grid').addEventListener('submit', e => {
 document.getElementById('mm-grid').addEventListener('keydown', e => { if(e.key === 'Escape' && mm.adding !== null){ mm.adding = null; renderMap(); } });
 
 // ---------- Quadro branco ----------
-// O desenho é guardado em coordenadas fixas (1600 x 1000) e redesenhado no tamanho da tela
-const WB_W = 1600, WB_H = 1000;
-const WB_COLORS = [['#1E2A1B', 'Preto'], ['#4A7A42', 'Verde'], ['#E07B2C', 'Laranja'], ['#D65341', 'Vermelho'], ['#4B84B4', 'Azul']];
-const WB_SIZES = [[3, 'Fino'], [6, 'Médio'], [12, 'Grosso']];
-const WB_TEXT = {3:30, 6:42, 12:60};
-const WB_TOOLS = [
-  ['pen', 'Lápis (P)', '<path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z"/>'],
-  ['marker', 'Marca-texto (M)', '<path d="M15.5 4.5l4 4L11 17H7v-4z"/><path d="M4 21h9"/>'],
-  ['eraser', 'Borracha (E)', '<path d="m7 21-4-4L14 6l6 6-9 9z"/><path d="M7 21h13M9 11l6 6"/>'],
-  ['line', 'Linha (L)', '<path d="M5 19 19 5"/>'],
-  ['rect', 'Retângulo (R)', '<rect x="4" y="6" width="16" height="12" rx="2"/>'],
-  ['ellipse', 'Círculo (O)', '<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>'],
-  ['text', 'Texto (T)', '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>']
-];
-const wb = {tool:'pen', color:'#1E2A1B', size:6, items:[], past:[], future:[], cur:null, textAt:null, remote:{}};
+// Vários quadros; cada traço tem id e hora, para desfazer só o que é seu e desenhar junto ao vivo
 let live = null, liveNet = null, liveFriends = {};   // quadro ao vivo (a conexão fica mais abaixo)
-
-// ---------- Vários quadros ----------
-// Cada traço tem id e hora: dá para desfazer só o que é seu e desenhar junto ao vivo sem um apagar o do outro
-const wbId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-const WB_KINDS = ['pen', 'marker', 'eraser', 'line', 'rect', 'ellipse', 'text'];
-const okItem = it => it && typeof it.id === 'string' && WB_KINDS.includes(it.t) && typeof it.color === 'string' && it.color.length < 30 && typeof it.size === 'number';
+const wbId = padId;
 const BOARDS = (() => {
   let list = store.get('quadros', null);
   if(!Array.isArray(list) || !list.length){
@@ -3523,153 +3850,42 @@ const BOARDS = (() => {
     list = [{id:wbId(), nome:'Meu quadro', items:Array.isArray(old) ? old : [], tomb:[], at:Date.now()}];
   }
   list.forEach(b => {
-    b.items = (b.items || []).filter(it => it && WB_KINDS.includes(it.t)); b.tomb = b.tomb || [];
+    b.items = (b.items || []).filter(it => it && PAD_KINDS.includes(it.t)); b.tomb = b.tomb || [];
     b.items.forEach((it, k) => { if(!it.id) it.id = wbId() + k; if(!it.ts) it.ts = k + 1; });
   });
   return list;
 })();
 let wbBoard = BOARDS.find(b => b.id === store.get('quadroAtual', null)) || BOARDS[0];
-wb.items = wbBoard.items;
 const saveBoards = debounce(() => { store.set('quadros', BOARDS); if(USER) store.del('board'); }, 400);
-// Toda mudança é {add:[traços], del:[traços ou ids]}; os apagados viram "lápide" para não voltarem quando os dois juntam
+// os apagados viram "lápide" para não voltarem quando os dois juntam os quadros
 function wbApplyTo(b, op){
-  const add = (op.add || []).filter(okItem), delIds = new Set((op.del || []).map(it => it.id || it));
-  const addIds = new Set(add.map(it => it.id));
-  if(delIds.size) b.tomb = [...new Set(b.tomb.concat([...delIds]))].slice(-3000);
+  const delIds = (op.del || []).map(it => it.id || it), addIds = new Set((op.add || []).map(it => it.id));
+  if(delIds.length) b.tomb = [...new Set(b.tomb.concat(delIds))].slice(-3000);
   if(addIds.size) b.tomb = b.tomb.filter(id => !addIds.has(id));
-  b.items = b.items.filter(it => !delIds.has(it.id) && !addIds.has(it.id)).concat(add);
-  if(add.length) b.items.sort((x, y) => (x.ts || 0) - (y.ts || 0));
-  b.at = Date.now();
+  b.items = applyOp(b.items, op); b.at = Date.now();
   if(b === wbBoard) wb.items = b.items;
   saveBoards();
 }
-function wbDo(op, record = true){
-  wbApplyTo(wbBoard, op);
-  if(record){ wb.past.push(op); if(wb.past.length > 80) wb.past.shift(); wb.future = []; }
-  liveSendOp(wbBoard, op);
-  wbRender(); paintWbTools();
-}
-const wbCanvas = document.getElementById('wb-canvas'), wbCtx = wbCanvas.getContext('2d');
-function wbDraw(ctx, it){
-  ctx.save();
-  ctx.strokeStyle = ctx.fillStyle = it.color; ctx.lineWidth = it.size; ctx.lineCap = ctx.lineJoin = 'round';
-  if(it.t === 'marker') ctx.globalAlpha = .4;
-  if(it.t === 'eraser'){ ctx.globalCompositeOperation = 'destination-out'; ctx.strokeStyle = '#000'; }
-  if(it.pts){
-    ctx.beginPath();
-    it.pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-    if(it.pts.length === 1) ctx.lineTo(it.pts[0][0] + .1, it.pts[0][1]);
-    ctx.stroke();
-  } else if(it.t === 'line'){
-    ctx.beginPath(); ctx.moveTo(it.x1, it.y1); ctx.lineTo(it.x2, it.y2); ctx.stroke();
-  } else if(it.t === 'rect'){
-    const x = Math.min(it.x1, it.x2), y = Math.min(it.y1, it.y2), w = Math.abs(it.x2 - it.x1), h = Math.abs(it.y2 - it.y1);
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, Math.min(14, w / 2, h / 2)) : ctx.rect(x, y, w, h); ctx.stroke();
-  } else if(it.t === 'ellipse'){
-    ctx.beginPath(); ctx.ellipse((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, Math.abs(it.x2 - it.x1) / 2, Math.abs(it.y2 - it.y1) / 2, 0, 0, Math.PI * 2); ctx.stroke();
-  } else if(it.t === 'text'){
-    ctx.font = `${it.bold ? 700 : 500} ${it.size}px Figtree, sans-serif`; ctx.textBaseline = 'middle'; ctx.fillText(it.text, it.x, it.y);
-  }
-  ctx.restore();
-}
-function wbRender(){
-  const w = wbCanvas.clientWidth; if(!w) return;
-  const d = window.devicePixelRatio || 1, pw = Math.round(w * d), ph = Math.round(w * d * WB_H / WB_W);
-  if(wbCanvas.width !== pw || wbCanvas.height !== ph){ wbCanvas.width = pw; wbCanvas.height = ph; }
-  wbCtx.setTransform(pw / WB_W, 0, 0, ph / WB_H, 0, 0);
-  wbCtx.clearRect(0, 0, WB_W, WB_H);
-  wb.items.forEach(it => wbDraw(wbCtx, it));
-  const now = Date.now();     // traço que o amigo ainda está fazendo
-  Object.entries(wb.remote).forEach(([id, r]) => { if(now - r.at > 8000) delete wb.remote[id]; else wbDraw(wbCtx, r.item); });
-  if(wb.cur) wbDraw(wbCtx, wb.cur);
-}
-new ResizeObserver(wbRender).observe(wbCanvas);
-if(document.fonts) document.fonts.ready.then(wbRender);
-
-// desfazer e refazer só mexem no que você fez (o que o amigo desenhou fica)
-function wbUndo(){ const op = wb.past.pop(); if(!op) return; wb.future.push(op); wbDo({add:op.del, del:op.add}, false); }
-function wbRedo(){ const op = wb.future.pop(); if(!op) return; wb.past.push(op); wbDo(op, false); }
-
-const wbBtn = (attr, label, inner) => `<button type="button" ${attr} title="${label}" aria-label="${label}" class="wb-btn w-10 h-10 rounded-xl grid place-items-center text-ink-2 hover:bg-sand disabled:opacity-35 disabled:hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${inner}</button>`;
-const wbIco = p => `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-const wbSep = '<span class="w-px h-6 bg-line mx-1"></span>';
-document.getElementById('wb-toolbar').innerHTML =
-  WB_TOOLS.map(([k, l, p]) => wbBtn(`data-tool="${k}"`, l, wbIco(p))).join('') + wbSep +
-  WB_COLORS.map(([c, n]) => wbBtn(`data-color="${c}"`, `Cor ${n.toLowerCase()}`, `<span class="w-5 h-5 rounded-full ring-2 ring-white shadow" style="background:${c}"></span>`)).join('') + wbSep +
-  WB_SIZES.map(([s, n]) => wbBtn(`data-size="${s}"`, `Traço ${n.toLowerCase()}`, `<span class="rounded-full bg-ink-2" style="width:${s + 3}px;height:${s + 3}px"></span>`)).join('') + wbSep +
-  wbBtn('data-act="undo"', 'Desfazer (Ctrl+Z)', wbIco('<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>')) +
-  wbBtn('data-act="redo"', 'Refazer (Ctrl+Y)', wbIco('<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>')) +
-  wbBtn('data-act="clear"', 'Limpar o quadro', wbIco('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'));
-function paintWbTools(){
-  document.querySelectorAll('#wb-toolbar .wb-btn').forEach(b => {
-    const on = b.dataset.tool === wb.tool || b.dataset.color === wb.color || +b.dataset.size === wb.size;
-    if(b.dataset.tool || b.dataset.color || b.dataset.size){
-      b.setAttribute('aria-pressed', on);
-      b.classList.toggle('bg-forest-100', on); b.classList.toggle('text-forest-700', on);
-    }
-  });
-  document.querySelector('#wb-toolbar [data-act="undo"]').disabled = !wb.past.length;
-  document.querySelector('#wb-toolbar [data-act="redo"]').disabled = !wb.future.length;
-  wbCanvas.style.cursor = wb.tool === 'text' ? 'text' : 'crosshair';
-}
-paintWbTools();
-document.getElementById('wb-toolbar').addEventListener('click', e => {
-  const b = e.target.closest('.wb-btn'); if(!b) return;
-  if(b.dataset.tool) wb.tool = b.dataset.tool;
-  if(b.dataset.color){ wb.color = b.dataset.color; if(wb.tool === 'eraser') wb.tool = 'pen'; }
-  if(b.dataset.size) wb.size = +b.dataset.size;
-  if(b.dataset.act === 'undo') wbUndo();
-  if(b.dataset.act === 'redo') wbRedo();
-  if(b.dataset.act === 'clear' && wb.items.length){ wbDo({add:[], del:wb.items.slice()}); toast('Quadro limpo. Use desfazer para trazer de volta.'); }
-  paintWbTools();
+const wb = new Pad({canvas:document.getElementById('wb-canvas'), toolbar:document.getElementById('wb-toolbar'), W:1600, keys:true, allowImage:true,
+  size:4, textBase:18, textStep:4, items:wbBoard.items, bg:wbBoard.bg || 'pontos',
+  onApply:op => { wbApplyTo(wbBoard, op); liveSendOp(wbBoard, op); },
+  onProgress:() => liveProgress(),
+  onBg:k => { wbBoard.bg = k; saveBoards(); if(live && live.boardId === wbBoard.id) livePublish({type:'meta', bg:k}); }});
+const wbRender = () => wb.render(), paintWbTools = () => wb.paintTools(), wbUndo = () => wb.undo(), wbRedo = () => wb.redo();
+// colar uma imagem (Ctrl+V) com o quadro aberto põe a imagem no quadro
+document.addEventListener('paste', e => {
+  if(currentScreen !== 'quadro' || (e.target instanceof Element && e.target.closest('input, textarea, [contenteditable="true"], #modal'))) return;
+  const fs = imagesFrom(e.clipboardData && e.clipboardData.files); if(!fs.length) return;
+  e.preventDefault(); wb.addImage(fs[0]);
 });
-const wbPos = e => { const r = wbCanvas.getBoundingClientRect(); return [Math.round((e.clientX - r.left) * WB_W / r.width * 10) / 10, Math.round((e.clientY - r.top) * WB_H / r.height * 10) / 10]; };
-wbCanvas.addEventListener('pointerdown', e => {
-  if(e.button > 0) return;
-  const p = wbPos(e);
-  if(wb.tool === 'text'){ openWbText(p); e.preventDefault(); return; }
-  const base = {id:wbId(), ts:Date.now(), t:wb.tool, color:wb.color};
-  wb.cur = ['pen', 'marker', 'eraser'].includes(wb.tool)
-    ? {...base, size:wb.tool === 'marker' ? wb.size * 3 + 10 : wb.tool === 'eraser' ? wb.size * 4 + 16 : wb.size, pts:[p]}
-    : {...base, size:wb.size, x1:p[0], y1:p[1], x2:p[0], y2:p[1]};
-  wbCanvas.setPointerCapture(e.pointerId);
-  wbRender();
-});
-wbCanvas.addEventListener('pointermove', e => {
-  if(!wb.cur) return;
-  const p = wbPos(e);
-  if(wb.cur.pts) wb.cur.pts.push(p); else { wb.cur.x2 = p[0]; wb.cur.y2 = p[1]; }
-  wbRender(); liveProgress();
-});
-['pointerup', 'pointercancel'].forEach(t => wbCanvas.addEventListener(t, () => {
-  if(!wb.cur) return;
-  const it = wb.cur; wb.cur = null;
-  wbDo({add:[it], del:[]});
-}));
-// texto: uma caixinha aparece onde você clicou
-const wbText = document.getElementById('wb-text');
-function openWbText(p){
-  const r = wbCanvas.getBoundingClientRect(), s = r.width / WB_W, size = WB_TEXT[wb.size];
-  wb.textAt = {x:p[0], y:p[1], size, color:wb.color};
-  Object.assign(wbText.style, {left:p[0] * s + 'px', top:(p[1] - size * .7) * s + 'px', fontSize:size * s + 'px', color:wb.color, width:Math.max(160, (WB_W - p[0]) * s - 16) + 'px'});
-  wbText.value = ''; wbText.classList.remove('hidden'); setTimeout(() => wbText.focus(), 0);
-}
-function closeWbText(save){
-  if(!wb.textAt) return;
-  const v = wbText.value.trim(), a = wb.textAt; wb.textAt = null;
-  wbText.classList.add('hidden');
-  if(save && v) wbDo({add:[{id:wbId(), ts:Date.now(), t:'text', color:a.color, size:a.size, x:a.x, y:a.y, text:v.slice(0, 300)}], del:[]});
-}
-wbText.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); closeWbText(true); } if(e.key === 'Escape') closeWbText(false); });
-wbText.addEventListener('blur', () => closeWbText(true));
 
 // lista de quadros: abrir, criar, renomear e apagar
 function wbOpen(id){
   const b = BOARDS.find(x => x.id === id); if(!b) return;
-  closeWbText(true);
-  wbBoard = b; wb.items = b.items; wb.past = []; wb.future = []; wb.remote = {}; wb.cur = null;
+  wbBoard = b; wb.setItems(b.items); wb.setBg(b.bg || 'pontos');
   store.set('quadroAtual', b.id);
-  renderWbBoards(); renderLive(); wbRender(); paintWbTools();
+  document.getElementById('wb-zen-out').classList.add('hidden');
+  renderWbBoards(); renderLive();
 }
 function renderWbBoards(){
   document.getElementById('wb-boards').innerHTML = BOARDS.map(b => {
@@ -3702,22 +3918,11 @@ document.getElementById('wb-del').addEventListener('click', () => {
   saveBoards(); wbOpen(BOARDS[0].id);
 });
 document.getElementById('wb-export').addEventListener('click', () => {
-  const c = document.createElement('canvas'); c.width = WB_W; c.height = WB_H;
-  const x = c.getContext('2d'); x.fillStyle = '#FFFDF8'; x.fillRect(0, 0, WB_W, WB_H);
-  const layer = document.createElement('canvas'); layer.width = WB_W; layer.height = WB_H;
-  const lx = layer.getContext('2d'); wb.items.forEach(it => wbDraw(lx, it));
-  x.drawImage(layer, 0, 0);
-  const a = document.createElement('a'); a.download = 'quadro-zen.png'; a.href = c.toDataURL('image/png'); a.click();
+  const a = document.createElement('a'); a.download = `${wbBoard.nome || 'quadro'}.png`; a.href = wb.toPNG(); a.click();
   toast('Imagem do quadro baixada.');
 });
+const boardPNG = () => wb.toPNG();
 // O Zen olha o quadro (vai como imagem para a Gemini) e explica ou corrige o que está desenhado
-function boardPNG(){
-  const c = document.createElement('canvas'); c.width = WB_W; c.height = WB_H;
-  const x = c.getContext('2d'); x.fillStyle = '#FFFDF8'; x.fillRect(0, 0, WB_W, WB_H);
-  const layer = document.createElement('canvas'); layer.width = WB_W; layer.height = WB_H;
-  wb.items.forEach(it => wbDraw(layer.getContext('2d'), it)); x.drawImage(layer, 0, 0);
-  return c.toDataURL('image/png');
-}
 document.getElementById('wb-zen').addEventListener('click', async e => {
   if(!wb.items.length) return toast('O quadro está vazio. Desenhe ou escreva algo primeiro.');
   const b = e.currentTarget; b.disabled = true; b.querySelector('span').textContent = 'O Zen está olhando...';
@@ -3730,12 +3935,82 @@ document.getElementById('wb-zen').addEventListener('click', async e => {
   b.disabled = false; b.querySelector('span').textContent = 'Zen, olha o quadro';
 });
 
+// O Zen também desenha: vê o quadro, recebe o pedido e devolve textos, setas, formas e curvas
+const ZEN_INK = {preto:'#1E2A1B', verde:'#4A7A42', laranja:'#E07B2C', vermelho:'#D65341', azul:'#4B84B4', roxo:'#8B5CB8'};
+function zenBoardItems(list){
+  const col = c => ZEN_INK[String(c || '').toLowerCase()] || (/^#[0-9a-f]{6}$/i.test(c) ? c : ZEN_INK.azul);
+  const X = v => Math.max(0, Math.min(1600, Math.round(+v || 0))), Y = v => Math.max(0, Math.min(1000, Math.round(+v || 0)));
+  const thick = v => Math.max(2, Math.min(12, +v || 4));
+  const shapes = {retangulo:'rect', elipse:'ellipse', circulo:'ellipse', triangulo:'tri', linha:'line', seta:'arrow'};
+  let ts = Date.now();
+  return (Array.isArray(list) ? list : []).slice(0, 80).map(x => {
+    if(!x) return null;
+    const t = String(x.tipo || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), base = {id:padId(), ts:ts++, color:col(x.cor), by:'zen'};
+    if(t === 'texto' && x.texto) return {...base, t:'text', x:X(x.x), y:Y(x.y), size:Math.max(18, Math.min(90, +x.tamanho || 34)), bold:!!x.negrito, text:String(x.texto).slice(0, 160)};
+    if(shapes[t]) return {...base, t:shapes[t], size:thick(x.espessura), fill:!!x.preencher && !['line', 'arrow'].includes(shapes[t]), x1:X(x.x1), y1:Y(x.y1), x2:X(x.x2), y2:Y(x.y2)};
+    if(t === 'caminho' && Array.isArray(x.pontos) && x.pontos.length > 1) return {...base, t:'pen', size:thick(x.espessura), pts:x.pontos.slice(0, 400).filter(p => Array.isArray(p)).map(p => [X(p[0]), Y(p[1])])};
+    return null;
+  }).filter(Boolean);
+}
+function boardSummary(){
+  const texts = wb.items.filter(it => it.t === 'text').slice(-40).map(it => `"${String(it.text).slice(0, 60)}" em (${Math.round(it.x)}, ${Math.round(it.y)})`);
+  const boxes = wb.items.filter(it => it.t !== 'eraser').slice(-60).map(it => wb.bbox(it).map(Math.round).join(','));
+  return `${texts.length ? `Textos já escritos: ${texts.join('; ')}.` : 'Ainda não há textos.'}\nRegiões já ocupadas (x1,y1,x2,y2): ${boxes.join(' | ') || 'nenhuma, o quadro está vazio'}.`;
+}
+async function zenDraw(pedido){
+  const btn = document.getElementById('wb-ask-go'), out = document.getElementById('wb-zen-out');
+  btn.disabled = true; btn.innerHTML = `${spinner} O Zen está desenhando...`;
+  try{
+    const d = await askGeminiJSON(`Você está desenhando junto com o ${ME.nome} num quadro branco de estudo de 1600 x 1000 (x cresce para a direita, y para baixo). A imagem anexada é o quadro agora.
+${boardSummary()}
+Pedido do ${ME.nome}: "${pedido}"
+Ajude de verdade: desenhe ou escreva no quadro o que ele pediu (explicação, esquema, gráfico, correção circulando erros em vermelho, passo a passo...). Use o espaço livre, sem escrever por cima do que já existe.
+No quadro NÃO use LaTeX: escreva fórmulas com símbolos comuns (x², √, Δ, ±, π, ≤, ≥, →, ½, ·). Textos curtos, no máximo uns 45 caracteres por item; para várias linhas, use vários itens de texto com y diferentes (espaço de 1,4 vez o tamanho). Organize com título, setas ligando ideias e cores para destacar. No máximo 60 itens.
+Itens possíveis:
+{"tipo":"texto","x":0,"y":0,"texto":"...","tamanho":34,"cor":"preto","negrito":false}  (x,y é o começo da linha, no meio da altura; tamanho de 22 a 70)
+{"tipo":"linha"|"seta","x1":0,"y1":0,"x2":0,"y2":0,"cor":"azul","espessura":4}
+{"tipo":"retangulo"|"elipse"|"triangulo","x1":0,"y1":0,"x2":0,"y2":0,"cor":"verde","espessura":4,"preencher":false}
+{"tipo":"caminho","pontos":[[0,0],[10,5]],"cor":"roxo","espessura":4}  (curvas e gráficos, de 20 a 80 pontos)
+Cores: preto, verde, laranja, vermelho, azul, roxo.
+Formato: {"explicacao":"o que você fez e a explicação, curta, em markdown (aqui pode usar LaTeX $...$)","desenhos":[...]}`, zenSystemPrompt(), [{mime:'image/png', data:boardPNG().split(',')[1]}]);
+    const items = zenBoardItems(d.desenhos || d.itens);
+    if(items.length) wb.do({add:items, del:[]});
+    STATS.toolUses++; addXP(XP.ferramenta, 'ferramenta');
+    const text = String(d.explicacao || (items.length ? 'Pronto, desenhei no quadro.' : 'Não consegui desenhar isso. Tente pedir de outro jeito.'));
+    out.innerHTML = `<div class="flex items-start gap-3">
+        <svg class="w-10 h-10 rounded-full bg-sand shrink-0" aria-hidden="true"><use href="#zen-head"/></svg>
+        <div class="min-w-0 flex-1"><div class="zen-md">${md(text)}</div>
+          <div class="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
+            ${items.length ? '<button type="button" data-wbz="undo" class="text-[#B4472F] hover:underline underline-offset-2">Tirar o que o Zen desenhou</button>' : ''}
+            <button type="button" data-wbz="note" class="text-forest-700 hover:underline underline-offset-2">Salvar a explicação em Anotações</button>
+            <button type="button" data-wbz="chat" class="text-forest-700 hover:underline underline-offset-2">Continuar no chat</button>
+            <button type="button" data-wbz="close" class="text-muted hover:underline underline-offset-2">Fechar</button>
+          </div></div></div>`;
+    out.classList.remove('hidden'); renderMath(out);
+    out.onclick = e => {
+      const a = (e.target.closest('[data-wbz]') || {}).dataset; if(!a) return;
+      if(a.wbz === 'undo'){ const ids = new Set(items.map(i => i.id)); wb.do({add:[], del:wb.items.filter(i => ids.has(i.id))}); e.target.remove(); }
+      if(a.wbz === 'note'){ const n = createNoteFromMarkdown(`Quadro: ${pedido.slice(0, 60)}`, text, '🎨', 'geral'); toast(`Anotação "${n.title}" criada.`); }
+      if(a.wbz === 'chat'){ location.hash = 'chat'; sendChat(`Sobre o que você fez no quadro ("${pedido}"): pode me explicar com outro exemplo?`); }
+      if(a.wbz === 'close') out.classList.add('hidden');
+    };
+  }catch(err){ toast(zenErrorText(err)); }
+  btn.disabled = false; btn.textContent = 'Zen, faz no quadro';
+}
+document.getElementById('wb-ask').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = document.getElementById('wb-ask-in'), v = inp.value.trim();
+  if(!v) return inp.focus();
+  if(document.getElementById('wb-ask-go').disabled) return;
+  zenDraw(v);
+});
+
 // ---------- Quadro compartilhado ao vivo ----------
 // A mesma conexão do app original: 3 servidores públicos de mensagens (MQTT) ao mesmo tempo, basta um funcionar,
 // e a mesma sala da dupla. O canal é outro ("teste1"), para esta versão não se misturar com o quadro do index.html.
 const SALA_DA_DUPLA = 'rfpy5fn84ex3x7rr';
 const LIVE_NS = 'zenestudos/teste1';
-const LIVE_VERSION = 1;                         // as duas cópias do teste precisam ser da mesma versão
+const LIVE_VERSION = 2;                         // as duas cópias do teste precisam ser da mesma versão
 const MQTT_LIB = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
 const LIVE_BROKERS = [
   {name:'HiveMQ',    url:'wss://broker.hivemq.com:8884/mqtt'},
@@ -3923,7 +4198,7 @@ function sendBoardState(to){
   b.items.forEach(it => { const n = JSON.stringify(it).length; if(size + n > LIVE_CHUNK && cur.length){ parts.push(cur); cur = []; size = 0; } cur.push(it); size += n; });
   parts.push(cur);
   const sid = wbId();
-  parts.forEach((items, i) => livePublish({type:'state', to, sid, part:i, parts:parts.length, board:Object.assign({items}, i === 0 ? {nome:b.nome, tomb:b.tomb.slice(-3000)} : {})}));
+  parts.forEach((items, i) => livePublish({type:'state', to, sid, part:i, parts:parts.length, board:Object.assign({items}, i === 0 ? {nome:b.nome, bg:b.bg, tomb:b.tomb.slice(-3000)} : {})}));
 }
 function mergeBoardState(d){
   live.parts = live.parts || {};
@@ -3941,6 +4216,7 @@ function mergeBoardState(d){
   b.items = [...map.values()].sort((x, y) => (x.ts || 0) - (y.ts || 0));
   if(b === wbBoard) wb.items = b.items;
   if(live.role === 'guest' && !live.gotState && meta.nome && /^Quadro ao vivo /.test(b.nome)) b.nome = `${String(meta.nome).slice(0, 40)} (com ${d.me.nome})`;
+  if(live.role === 'guest' && !live.gotState && PAD_BGS[meta.bg]){ b.bg = meta.bg; if(b === wbBoard) wb.setBg(meta.bg); }
   const first = !live.gotState; live.gotState = true;
   b.at = Date.now(); saveBoards(); renderWbBoards();
   if(b === wbBoard) wbRender();
@@ -3959,7 +4235,10 @@ function onLiveData(d){
     case 'state': if(!d.to || d.to === liveNet.src) mergeBoardState(d); break;
     case 'add': if(b && okItem(d.item)){ delete wb.remote[d.item.id]; wbApplyTo(b, {add:[d.item]}); if(here) wbRender(); } break;
     case 'remove': if(b && Array.isArray(d.ids)){ wbApplyTo(b, {del:d.ids.filter(x => typeof x === 'string')}); if(here) wbRender(); } break;
-    case 'meta': if(b && d.nome){ b.nome = String(d.nome).slice(0, 60); saveBoards(); renderWbBoards(); } break;
+    case 'meta':
+      if(b && d.nome){ b.nome = String(d.nome).slice(0, 60); saveBoards(); renderWbBoards(); }
+      if(b && PAD_BGS[d.bg]){ b.bg = d.bg; saveBoards(); if(here) wb.setBg(d.bg); }
+      break;
     case 'progress': if(here && okItem(d.item)){ wb.remote[d.item.id] = {item:d.item, at:Date.now()}; wbRender(); } break;
     case 'bye': delete live.partners[d.src]; if(d.me) toast(`${d.me.avatar} ${d.me.nome} saiu do quadro.`); renderLive(); break;
   }
@@ -4571,7 +4850,7 @@ document.addEventListener('keydown', e => {
     if((e.ctrlKey || e.metaKey) && k === 'z'){ e.preventDefault(); e.shiftKey ? wbRedo() : wbUndo(); return; }
     if((e.ctrlKey || e.metaKey) && k === 'y'){ e.preventDefault(); wbRedo(); return; }
     if(e.ctrlKey || e.metaKey || e.altKey) return;
-    const tool = {p:'pen', m:'marker', e:'eraser', l:'line', r:'rect', o:'ellipse', t:'text'}[k];
+    const tool = {p:'pen', m:'marker', e:'eraser', x:'wipe', v:'move', l:'line', a:'arrow', r:'rect', o:'ellipse', g:'tri', t:'text'}[k];
     if(tool){ wb.tool = tool; paintWbTools(); }
   } else if(currentScreen === 'foco' && e.key === ' ' && !t.closest('button')){
     e.preventDefault(); foToggle();
@@ -4639,62 +4918,79 @@ function renderHome(){
   const lastView = STATS.lastView && SCREENS.find(s => s.id === STATS.lastView);
   const rankRow = (label, a, b) => `<tr class="border-t border-line"><td class="py-1.5 text-ink-2">${label}</td><td class="py-1.5 text-right font-semibold tabular-nums ${a > b ? 'text-forest-700' : ''}">${a.toLocaleString('pt-BR')}</td><td class="py-1.5 text-right font-semibold tabular-nums ${b > a ? 'text-forest-700' : ''}">${b.toLocaleString('pt-BR')}</td></tr>`;
   const op = opR || {xp:0, min:0, ok:0, days:0};
+  const dueSubj = [...new Set(dueCards().map(c => (subjectOf(c.k) || {}).nome).filter(Boolean))].slice(0, 3).join(', ');
+  const rankList = [{id:ME.id, nome:ME.nome, xp:meR.xp, me:true}, {id:FRIEND.id, nome:FRIEND.nome, xp:op.xp}].sort((a, b) => b.xp - a.xp);
   document.getElementById('home').innerHTML = `
-  <div class="relative overflow-hidden rounded-[24px] text-[#F3F1E6] px-6 sm:px-9 pt-7 pb-6" style="background:linear-gradient(135deg,#2D412C 0%,#3E6339 60%,#4A7A42 100%)">
-    <div class="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-6 items-center">
-      <div class="min-w-0">
-        <h1 class="text-[27px] sm:text-[33px] font-extrabold tracking-tight leading-tight">${getGreeting()}</h1>
-        <p id="home-sub" class="mt-1.5 text-[16px] text-[#DDE8D2] min-h-[1.5em] transition-opacity duration-300">${subs[0]}</p>
-        <div class="mt-4 flex flex-wrap gap-2 text-[14px] font-semibold">
-          <span class="rounded-full bg-white/15 px-3 py-1.5">🔥 Sequência de ${plural(STATS.streak, 'dia', 'dias')}</span>
-          <span class="rounded-full bg-white/15 px-3 py-1.5">⭐ Nível ${lv.level}, ${lv.title}</span>
-          ${STATS.freezes ? `<span class="rounded-full bg-white/15 px-3 py-1.5" title="Congelamentos de sequência guardados">🧊 ${STATS.freezes}</span>` : ''}
-        </div>
-        <div class="mt-4 max-w-[520px]">
-          <div class="h-2.5 rounded-full bg-white/20 overflow-hidden" role="progressbar" aria-valuenow="${lv.current}" aria-valuemin="0" aria-valuemax="${lv.need}" aria-label="XP do nível ${lv.level}"><div class="h-full rounded-full bg-amber" style="width:${lv.pct}%"></div></div>
-          <p class="mt-1.5 text-[13px] text-[#CFE0BF] tabular-nums">${lv.current} de ${lv.need} XP para o nível ${lv.level + 1}</p>
-        </div>
-        <ol class="mt-4 flex gap-2.5" aria-label="Últimos 7 dias">
-          ${week.map(k => `<li class="flex flex-col items-center gap-1 w-9"><span class="text-[20px] ${active(k) ? '' : 'grayscale opacity-35'}" aria-hidden="true">🔥</span><span class="text-[11.5px] ${k === t ? 'font-bold text-white' : 'text-[#CFE0BF]'}">${WEEKDAY[keyDate(k).getDay()]}</span><span class="sr-only">${active(k) ? 'estudou' : 'não estudou'}</span></li>`).join('')}
-        </ol>
+  <header class="flex items-start justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="text-[28px] sm:text-[34px] font-extrabold tracking-tight leading-tight">${getGreeting()}</h1>
+      <p id="home-sub" class="mt-1 text-[15.5px] text-ink-2 min-h-[1.5em] transition-opacity duration-300">${subs[0]}</p>
+    </div>
+    ${topTools()}
+  </header>
+
+  <div class="mt-5 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+    <ol class="flex gap-3 sm:gap-6" aria-label="Últimos 7 dias">
+      ${week.map(k => `<li class="flex flex-col items-center gap-1.5 w-9"><span class="text-[26px] leading-none ${active(k) ? '' : 'grayscale opacity-30'}" aria-hidden="true">🔥</span><span class="text-[12.5px] ${k === t ? 'font-bold text-ink' : 'text-ink-2'}">${WEEKDAY[keyDate(k).getDay()]}</span><span class="sr-only">${active(k) ? 'estudou' : 'não estudou'}</span></li>`).join('')}
+    </ol>
+    <div class="flex flex-wrap gap-2 text-[13.5px] font-semibold">
+      <span class="rounded-full bg-[#FBEBC6] text-[#8A5A12] px-3 py-1.5">🔥 Sequência de ${plural(STATS.streak, 'dia', 'dias')}</span>
+      ${STATS.freezes ? `<span class="rounded-full bg-[#E3EEF6] text-[#2F5F8A] px-3 py-1.5" title="Congelamentos de sequência guardados">🧊 ${STATS.freezes}</span>` : ''}
+    </div>
+  </div>
+  <div class="mt-5">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+      <p class="font-bold text-[16px]">Nível ${lv.level} <span class="font-semibold text-ink-2">${lv.title}</span></p>
+      <p class="text-[14px] text-ink-2 tabular-nums">${lv.current} / ${lv.need} XP</p>
+    </div>
+    <div class="mt-2 h-3 rounded-full bg-track overflow-hidden" role="progressbar" aria-valuenow="${lv.current}" aria-valuemin="0" aria-valuemax="${lv.need}" aria-label="XP do nível ${lv.level}"><div class="h-full rounded-full bg-forest-500" style="width:${lv.pct}%"></div></div>
+  </div>
+
+  <div class="mt-6 relative overflow-hidden rounded-[22px] border border-[#EADFC4] shadow-card px-6 sm:px-8 pt-6 pb-5 grid md:grid-cols-[minmax(0,1fr)_auto] gap-5 items-end" style="background:linear-gradient(120deg,#F6EEDC 0%,#F1E6CC 100%)">
+    <div class="min-w-0 self-center">
+      <h2 class="font-extrabold text-[22px] tracking-tight">Revisão do dia</h2>
+      ${reviewed ? `<p class="mt-2 text-[16px] text-forest-700 font-semibold">Feita hoje! ✓</p><p class="text-[15px] text-ink-2">${due ? `Ainda há ${plural(due, 'cartão', 'cartões')} se quiser continuar.` : 'Volte amanhã para a próxima.'}</p>`
+        : due || wrong ? `${dueSubj ? `<p class="mt-2 text-[16px] font-semibold text-ink">${esc(dueSubj)}</p>` : ''}<p class="mt-1 text-[15px] text-ink-2">${[due ? plural(due, 'cartão para revisar', 'cartões para revisar') : '', wrong ? plural(wrong, 'questão para refazer', 'questões para refazer') : ''].filter(Boolean).join(' e ')}, cerca de ${Math.max(1, Math.round(Math.min(due, 15) * .6 + Math.min(wrong, 5) * 1.5))} min. Vale +${XP.revisao} XP.</p>`
+        : `<p class="mt-2 text-[15px] text-ink-2 max-w-[46ch]">Nada para revisar agora. Crie flashcards ou gere questões com o Zen para ter revisão amanhã.</p>`}
+      <div class="mt-4 flex flex-wrap gap-2">
+        ${due ? `<button type="button" data-home="review" class="${btnPrimary}"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Estudar agora</button>` : `<button type="button" data-home="cards" class="${btnPrimary}">Criar flashcards</button>`}
+        ${wrong ? `<button type="button" data-home="wrong" class="${btnSoft}">Refazer erradas</button>` : ''}
       </div>
-      <div class="flex items-end justify-center lg:justify-end gap-2">
-        <div class="relative max-w-[250px] rounded-2xl bg-[#FBF7EE] text-ink px-4 py-3 shadow-card mb-10">
-          <p class="text-[12px] font-bold text-forest-500">Recado do Zen para o ${ME.nome}</p>
-          <p id="home-carinho" class="mt-0.5 text-[14.5px] leading-snug">${esc(carinhoDoDia(homeMsg))}</p>
-          <button type="button" data-home="carinho" class="mt-1.5 text-[12.5px] font-semibold text-forest-500 hover:underline">Outro recado</button>
-          <span class="absolute -right-1.5 bottom-6 w-3.5 h-3.5 rotate-45 bg-[#FBF7EE]" aria-hidden="true"></span>
-        </div>
-        <svg class="capy-float w-[120px] sm:w-[145px] h-auto aspect-[172/160] shrink-0 drop-shadow-lg" aria-hidden="true"><use href="#capy-happy"/></svg>
+    </div>
+    <div class="flex flex-col sm:flex-row items-end justify-center md:justify-end gap-2">
+      <div class="relative w-full sm:w-auto sm:flex-1 md:flex-none min-w-0 sm:max-w-[260px] rounded-2xl bg-paper text-ink px-4 py-3 shadow-card sm:mb-12">
+        <p class="text-[12px] font-bold text-forest-500">Recado do Zen para o ${ME.nome}</p>
+        <p id="home-carinho" class="mt-0.5 text-[14.5px] leading-snug">${esc(carinhoDoDia(homeMsg))}</p>
+        <button type="button" data-home="carinho" class="mt-1.5 text-[12.5px] font-semibold text-forest-500 hover:underline">Outro recado</button>
+        <span class="absolute right-10 -bottom-1.5 sm:-right-1.5 sm:bottom-6 w-3.5 h-3.5 rotate-45 bg-paper" aria-hidden="true"></span>
       </div>
+      <svg class="capy-float w-[120px] sm:w-[160px] h-auto aspect-[172/162] shrink-0 drop-shadow-md" aria-hidden="true"><use href="#capy-sit"/></svg>
     </div>
   </div>
 
-  <div class="mt-5 grid lg:grid-cols-3 gap-5">
-    <div class="${card}">
-      <div class="flex items-center justify-between"><h2 class="font-bold text-[17px]">Revisão do dia</h2><span class="text-[22px]" aria-hidden="true">▶️</span></div>
-      ${reviewed ? `<p class="mt-3 text-[15px] text-forest-700 font-semibold">Feita hoje! ✓</p><p class="text-[14px] text-ink-2">${due ? `Ainda há ${plural(due, 'cartão', 'cartões')} se quiser continuar.` : 'Volte amanhã para a próxima.'}</p>`
-        : due || wrong ? `<ul class="mt-3 space-y-1 text-[15px] text-ink-2">${due ? `<li>🗂️ ${plural(due, 'cartão para revisar', 'cartões para revisar')}</li>` : ''}${wrong ? `<li>❌ ${plural(wrong, 'questão para refazer', 'questões para refazer')}</li>` : ''}</ul><p class="mt-1 text-[13px] text-muted">Cerca de ${Math.max(1, Math.round(Math.min(due, 15) * .6 + Math.min(wrong, 5) * 1.5))} min. Vale +${XP.revisao} XP.</p>`
-        : `<p class="mt-3 text-[14.5px] text-ink-2">Nada para revisar agora. Crie flashcards ou gere questões com o Zen para ter revisão amanhã.</p>`}
-      <div class="mt-4 flex flex-wrap gap-2">
-        ${due ? `<button type="button" data-home="review" class="${btnPrimary} !py-2 !text-[14px]">Começar revisão</button>` : `<button type="button" data-home="cards" class="${btnPrimary} !py-2 !text-[14px]">Criar flashcards</button>`}
-        ${wrong ? `<button type="button" data-home="wrong" class="${btnSoft} !py-2 !text-[14px]">Refazer erradas</button>` : ''}
-      </div>
-    </div>
+  <div class="mt-5 grid lg:grid-cols-2 gap-5">
     <div class="${card}">
       <h2 class="font-bold text-[17px]">Missões de hoje</h2>
-      <ul class="mt-3 space-y-3">${missions.map(m => `<li>
-        <div class="flex items-center gap-2.5 text-[14.5px]"><span aria-hidden="true">${m.icon}</span><span class="flex-1 ${m.done ? 'text-muted line-through' : 'text-ink-2'}">${m.text}</span>${m.done ? '<span class="text-forest-500 font-bold" aria-label="feita">✓</span>' : `<span class="text-[13px] text-muted tabular-nums">${m.prog}/${m.n}</span>`}</div>
-        <div class="mt-1.5 h-[5px] rounded-full bg-track overflow-hidden"><div class="h-full rounded-full ${m.done ? 'bg-forest-500' : 'bg-forest-700'}" style="width:${Math.round(m.prog / m.n * 100)}%"></div></div></li>`).join('')}</ul>
-      <p class="mt-3 text-[12.5px] text-muted">+${XP.missao} XP cada e +50 se fizer as três.${STATS.freezes ? ` Você tem ${plural(STATS.freezes, 'congelamento', 'congelamentos')} 🧊.` : ''}</p>
+      <ul class="mt-3 space-y-3.5">${missions.map(m => `<li>
+        <div class="flex items-center gap-3 text-[15px]">
+          <span class="w-5 h-5 rounded-md border-2 grid place-items-center shrink-0 ${m.done ? 'bg-forest-500 border-forest-500 text-white' : 'border-[#B5B2A8]'}" aria-hidden="true">${m.done ? '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' : ''}</span>
+          <span class="flex-1 ${m.done ? 'text-muted line-through' : 'text-ink'}">${m.icon} ${m.text}</span>
+          <span class="text-[13px] text-ink-2 tabular-nums">${m.done ? m.n : m.prog}/${m.n}</span>
+          <span class="sr-only">${m.done ? 'feita' : 'em andamento'}</span>
+        </div>
+        <div class="mt-1.5 ml-8 h-[6px] rounded-full bg-track overflow-hidden"><div class="h-full rounded-full bg-forest-500" style="width:${m.done ? 100 : Math.round(m.prog / m.n * 100)}%"></div></div></li>`).join('')}</ul>
+      <p class="mt-3.5 text-[12.5px] text-muted">+${XP.missao} XP cada e +50 se fizer as três.${STATS.freezes ? ` Você tem ${plural(STATS.freezes, 'congelamento', 'congelamentos')} 🧊.` : ''}</p>
     </div>
     <div class="${card}">
-      <div class="flex items-center justify-between"><h2 class="font-bold text-[17px]">Ranking da semana</h2><span class="text-[13px] text-muted" title="Semanas ganhas">🏆 ${wins} × ${losses}</span></div>
-      <table class="mt-2 w-full text-[14.5px]">
-        <thead><tr class="text-[13px]"><th></th>
-          <th class="py-1 text-right font-semibold">${meR.xp >= op.xp && meR.xp ? '👑 ' : ''}${PROFILE_AVATAR[ME.id]} ${ME.nome}</th>
-          <th class="py-1 text-right font-semibold">${op.xp > meR.xp ? '👑 ' : ''}${PROFILE_AVATAR[FRIEND.id]} ${FRIEND.nome}</th></tr></thead>
-        <tbody>${rankRow('XP', meR.xp, op.xp)}${rankRow('Minutos', meR.min, op.min)}${rankRow('Acertos', meR.ok, op.ok)}${rankRow('Dias', meR.days, op.days)}</tbody>
+      <div class="flex items-center justify-between"><h2 class="font-bold text-[17px]">Ranking da semana</h2><span class="text-[13px] text-muted" title="Semanas ganhas e perdidas">🏆 ${wins} × ${losses}</span></div>
+      <ol class="mt-3 space-y-2">${rankList.map((p, n) => `<li class="flex items-center gap-3 rounded-xl px-3 py-2.5 ${p.me ? 'bg-forest-100/70' : 'bg-cream'}">
+        <span class="w-6 text-center text-[18px]" aria-label="${n + 1}º lugar">${p.xp ? ['🥇', '🥈'][n] : `<span class="text-[14px] font-bold text-ink-2">${n + 1}</span>`}</span>
+        <span class="w-9 h-9 rounded-full bg-paper border border-line grid place-items-center text-[19px]" aria-hidden="true">${PROFILE_AVATAR[p.id]}</span>
+        <span class="flex-1 font-semibold text-[15px]">${p.nome}${p.me ? ' <span class="font-normal text-muted text-[13px]">(você)</span>' : ''}</span>
+        <span class="font-bold tabular-nums text-[15px]">${p.xp.toLocaleString('pt-BR')} XP</span></li>`).join('')}</ol>
+      <table class="mt-3 w-full text-[13.5px]">
+        <thead><tr class="text-[12.5px] text-muted"><th class="text-left font-semibold"></th><th class="py-1 text-right font-semibold">${ME.nome}</th><th class="py-1 text-right font-semibold">${FRIEND.nome}</th></tr></thead>
+        <tbody>${rankRow('Minutos', meR.min, op.min)}${rankRow('Acertos', meR.ok, op.ok)}${rankRow('Dias', meR.days, op.days)}</tbody>
       </table>
       <p class="mt-2 text-[12.5px] text-muted">${fs ? 'Quem fizer mais XP até sábado ganha +50 XP.' : `O ${FRIEND.nome} ainda não apareceu. O ranking junta o perfil dele deste aparelho e o que chega pela conexão ao vivo.`}</p>
     </div>
@@ -4879,9 +5175,14 @@ window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 show(location.hash.slice(1));
 
 // ---------- Chat com o Zen (Gemini de verdade) ----------
-const CHAT = store.get('chat', []);     // [{role:'user'|'model', text, time, model}]
+const CHAT = store.get('chat', []);     // [{role:'user'|'model', text, time, model, imgs:[miniaturas]}]
 const nowTime = () => new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-const saveChat = () => { if(CHAT.length > 80) CHAT.splice(0, CHAT.length - 80); store.set('chat', CHAT); };
+const saveChat = () => {
+  if(CHAT.length > 80) CHAT.splice(0, CHAT.length - 80);
+  // só as fotos das 6 mensagens mais recentes ficam guardadas (o espaço do navegador é pequeno)
+  CHAT.filter(m => m.imgs && m.imgs.length).slice(0, -6).forEach(m => { m.imgs = []; m.imgsGone = true; });
+  store.set('chat', CHAT);
+};
 let chatBusy = false, chatErr = null;
 // Personalidade do Zen + o que o app sabe agora (sequência, provas, pontos fracos e boletim)
 function weakSubjects(){
@@ -4911,8 +5212,13 @@ Contexto do ${n}: sequência atual de ${STATS.streak} dias, nível ${levelInfo(S
 const ZEN_AVATAR = '<svg class="w-10 h-10 rounded-full bg-sand shrink-0 mt-0.5" aria-hidden="true"><use href="#zen-head"/></svg>';
 const CHAT_HELLO = `Oi, ${ME.nome}! Sou o Zen 🦫. Pode me perguntar sobre qualquer matéria: eu explico com calma, passo a passo, e no fim te faço uma perguntinha para ver se ficou claro.`;
 const CHAT_SUGGEST = ['Me explica a fórmula de Bhaskara', 'Faz 3 perguntas de Biologia para eu treinar', 'Monta um plano até a minha próxima prova', 'Como a fotossíntese funciona?'];
+const chatImgsHTML = m => {
+  const imgs = (m.imgs || []).filter(u => /^data:image\//.test(u));
+  if(imgs.length) return `<span class="flex flex-wrap justify-end gap-1.5 mb-2">${imgs.map((u, k) => `<img src="${u}" alt="Foto ${k + 1} enviada" class="w-32 h-32 object-cover rounded-xl bg-white/20">`).join('')}</span>`;
+  return m.imgsGone ? '<span class="block text-[12.5px] text-white/75 mb-1">📷 foto (não fica mais guardada)</span>' : '';
+};
 function chatBubble(m, idx){
-  if(m.role === 'user') return `<div class="flex justify-end"><div class="max-w-[82%] rounded-2xl rounded-br-md bg-forest-500 text-white text-[15px] leading-relaxed px-4 py-2.5 shadow-card whitespace-pre-wrap">${esc(m.text)}${m.time ? `<span class="block text-right text-[11px] text-white/70 tabular-nums mt-0.5">${m.time}</span>` : ''}</div></div>`;
+  if(m.role === 'user') return `<div class="flex justify-end"><div class="max-w-[82%] rounded-2xl rounded-br-md bg-forest-500 text-white text-[15px] leading-relaxed px-4 py-2.5 shadow-card whitespace-pre-wrap">${chatImgsHTML(m)}${esc(m.text)}${m.time ? `<span class="block text-right text-[11px] text-white/70 tabular-nums mt-0.5">${m.time}</span>` : ''}</div></div>`;
   return `<div class="flex items-start gap-3">${ZEN_AVATAR}<div class="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md bg-[#E6EFDC] border border-[#CFE0BF] text-ink px-4 sm:px-5 py-3 shadow-card">
     <div class="zen-md">${md(m.text)}</div>
     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
@@ -4936,16 +5242,26 @@ function renderChat(){
   document.getElementById('chat-suggest').innerHTML = CHAT.length ? '' : CHAT_SUGGEST.map(s => `<button type="button" data-suggest class="shrink-0 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13.5px] text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${esc(s)}</button>`).join('');
   document.getElementById('chat-send').disabled = chatBusy;
 }
-async function sendChat(text){
+let chatPending = null;     // fotos em tamanho bom da última mensagem (as antigas vão em miniatura)
+async function sendChat(text, imgs){
   if(chatBusy) return;
-  if(text){ CHAT.push({role:'user', text, time:nowTime()}); saveChat(); STATS.chatMessages++; addXP(XP.chat, 'chat'); }
+  if(text){
+    const m = {role:'user', text, time:nowTime()};
+    if(imgs && imgs.length) m.imgs = imgs.map(i => i.thumb);
+    chatPending = imgs && imgs.length ? imgs : null;
+    CHAT.push(m); saveChat(); STATS.chatMessages++; addXP(XP.chat, 'chat');
+  }
   if(!CHAT.length || CHAT[CHAT.length - 1].role !== 'user') return;
   chatErr = null; chatBusy = true; renderChat();
   try{
-    const contents = CHAT.slice(-24).map(m => ({role:m.role, parts:[{text:m.text}]}));
+    const recent = CHAT.slice(-24);
+    const contents = recent.map((m, k) => {
+      const imgs = k === recent.length - 1 && chatPending ? chatPending : (m.imgs || []).filter(u => /^data:image\//.test(u)).map(u => ({mime:'image/jpeg', data:u.split(',')[1]}));
+      return {role:m.role, parts:[...imgParts(imgs), {text:m.text + (imgs.length && m.role === 'user' ? imgHint(imgs) : '')}]};
+    });
     while(contents.length && contents[0].role !== 'user') contents.shift();   // a conversa precisa começar pelo aluno
     const r = await askGemini({contents, system:zenSystemPrompt()});
-    CHAT.push({role:'model', text:r.text, time:nowTime(), model:r.model}); saveChat();
+    CHAT.push({role:'model', text:r.text, time:nowTime(), model:r.model}); chatPending = null; saveChat();
     if(r.model !== SETTINGS.main) toast(`O modelo principal não respondeu, então o Zen usou a reserva (${modelName(r.model)}).`);
   }catch(err){ chatErr = err; }
   chatBusy = false; renderChat();
@@ -4954,12 +5270,34 @@ const chatInput = document.getElementById('chat-input');
 const fitChatInput = () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(160, chatInput.scrollHeight) + 'px'; };
 chatInput.addEventListener('input', fitChatInput);
 chatInput.addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); document.getElementById('chat-form').requestSubmit(); } });
+// fotos para o Zen: botão da câmera, colar (Ctrl+V) ou arrastar para a conversa
+let chatImgs = [];
+function paintChatAtt(){
+  const el = document.getElementById('chat-att-list');
+  el.classList.toggle('hidden', !chatImgs.length);
+  el.innerHTML = chatImgs.map((im, k) => `<span class="relative"><img src="${im.thumb}" alt="Foto ${k + 1}" class="w-16 h-16 rounded-xl object-cover border border-line">
+    <button type="button" data-chat-att-del="${k}" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white grid place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber" aria-label="Tirar a foto ${k + 1}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>`).join('');
+}
+async function addChatImages(files){
+  for(const f of imagesFrom(files)){
+    if(chatImgs.length >= ATTACH_MAX){ toast(`No máximo ${ATTACH_MAX} fotos por mensagem.`); break; }
+    try{ chatImgs.push(await readImage(f)); }catch(err){ toast('Não deu para abrir essa imagem. Use JPG ou PNG.'); }
+  }
+  paintChatAtt(); chatInput.focus();
+}
+document.getElementById('chat-att').addEventListener('click', async () => addChatImages(await pickImageFiles()));
+document.getElementById('chat-att-list').addEventListener('click', e => { const d = e.target.closest('[data-chat-att-del]'); if(d){ chatImgs.splice(+d.dataset.chatAttDel, 1); paintChatAtt(); } });
+chatInput.addEventListener('paste', e => { const fs = imagesFrom(e.clipboardData && e.clipboardData.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
+const chatScreen = document.querySelector('[data-screen="chat"]');
+chatScreen.addEventListener('dragover', e => { if([...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+chatScreen.addEventListener('drop', e => { const fs = imagesFrom(e.dataTransfer.files); if(fs.length){ e.preventDefault(); addChatImages(fs); } });
 document.getElementById('chat-form').addEventListener('submit', e => {
   e.preventDefault();
   const text = chatInput.value.trim();
-  if(!text || chatBusy) return;
+  if((!text && !chatImgs.length) || chatBusy) return;
+  const imgs = chatImgs; chatImgs = []; paintChatAtt();
   chatInput.value = ''; fitChatInput();
-  sendChat(text);
+  sendChat(text || (imgs.length > 1 ? 'Me ajuda com estas fotos?' : 'Me ajuda com esta foto?'), imgs);
 });
 document.getElementById('chat-log').addEventListener('click', async e => {
   if(e.target.closest('[data-chat-retry]')) return sendChat();
