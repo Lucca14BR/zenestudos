@@ -155,6 +155,10 @@
   .hw-frame .hw-c.tr { border-right-width:4px; border-top-width:4px; border-top-right-radius:18px; }
   .hw-frame .hw-c.bl { border-left-width:4px; border-bottom-width:4px; border-bottom-left-radius:18px; }
   .hw-frame .hw-c.br { border-right-width:4px; border-bottom-width:4px; border-bottom-right-radius:18px; }
+  .hw-frame { pointer-events:none; }
+  .hw-frame .hw-c { pointer-events:auto; touch-action:none; cursor:nwse-resize; }
+  .hw-frame .hw-c.tr, .hw-frame .hw-c.bl { cursor:nesw-resize; }
+  .hw-frame .hw-c::before { content:''; position:absolute; inset:-18px; }
   .hw-crop { box-shadow:0 0 0 100vmax rgba(0,0,0,.6); outline:1.5px solid rgba(255,255,255,.9); cursor:move; }
   .hw-h { position:absolute; width:34px; height:34px; color:#F4BC4E; border:0 solid currentColor; }
   .hw-h::before { content:''; position:absolute; inset:-10px; }
@@ -980,15 +984,115 @@ const makeStore = (prefix, profileData) => ({
   get(k, d){ try{ const v = localStorage.getItem(prefix + k); return v === null ? d : JSON.parse(v); }catch(err){ return d; } },
   set(k, v){
     if(profileData && !USER) return;     // antes de escolher o perfil, nada é gravado em nome de ninguém
-    try{ localStorage.setItem(prefix + k, JSON.stringify(v)); }catch(err){ toast('Não deu para salvar: o espaço do navegador acabou.'); }
+    try{
+      const s = JSON.stringify(v);
+      if(profileData && localStorage.getItem(prefix + k) === s) return;   // nada mudou (e não conta como mudança para o vínculo)
+      localStorage.setItem(prefix + k, s);
+    }catch(err){ toast('Não deu para salvar: o espaço do navegador acabou.'); return; }
+    if(profileData) syncTouch(k);
   },
-  del(k){ try{ localStorage.removeItem(prefix + k); }catch(err){} }
+  del(k){ try{ localStorage.removeItem(prefix + k); }catch(err){} if(profileData && USER) syncTouch(k); }
 });
 const store = makeStore(LS, true), gstore = makeStore(GLS), friendStore = makeStore(FRIEND.prefix);
-// todas as chaves deste perfil (para "apagar tudo" sem tocar no outro perfil nem na chave da IA)
-function profileKeys(){
-  try{ return Object.keys(localStorage).filter(k => k.startsWith(LS) && !(ME.id === 'lucca' && k.startsWith(PROFILES.antonio.prefix)) && !GLOBAL_KEYS.some(g => k === GLS + g)); }catch(err){ return []; }
+// todas as chaves de um perfil (para "apagar tudo" sem tocar no outro perfil nem na chave da IA)
+function keysOf(p){
+  try{ return Object.keys(localStorage).filter(k => k.startsWith(p.prefix) && !(p.id === 'lucca' && k.startsWith(PROFILES.antonio.prefix)) && !GLOBAL_KEYS.some(g => k === GLS + g)); }catch(err){ return []; }
 }
+const profileKeys = () => keysOf(ME);
+
+// ---------- Vínculo entre aparelhos: o que mudou e quando ----------
+// Cada parte do perfil (notas, cartões, XP...) guarda [quando mudou aqui, versão que os aparelhos vinculados já têm].
+// Quando chega uma versão mais nova de outro aparelho, ela é aplicada ao abrir o app (antes de as telas lerem os dados).
+const SYNC = {on:false, seen:{}, parts:{}, done:new Set(), devs:{}, chunks:{}, repush:new Set(), applied:0};
+// aparelho que acabou de ser vinculado: até os dados chegarem, o que ele cria sozinho (valores vazios) não vale mais que os de lá
+SYNC.fresh = (() => { try{ return Date.now() - (+sessionStorage.getItem(GLS + 'syncFresh') || 0) < 90000; }catch(err){ return false; } })();
+const SYNC_SKIP = new Set(['__mt', '__pend', 'vinculo', 'rankAmigo', 'askProfile', 'ultimoBackup']);
+const syncSkip = k => SYNC_SKIP.has(k) || GLOBAL_KEYS.includes(k);
+function syncMeta(prefix = LS){ try{ return JSON.parse(localStorage.getItem(prefix + '__mt')) || {}; }catch(err){ return {}; } }
+function syncMetaSave(m, prefix = LS){ try{ localStorage.setItem(prefix + '__mt', JSON.stringify(m)); }catch(err){} }
+function syncTouch(k){
+  if(syncSkip(k)) return;
+  const m = syncMeta(), e = m[k] || [0, -1];
+  if(SYNC.fresh && !(k in SYNC.seen)){ m[k] = [0, 0]; syncMetaSave(m); return; }
+  e[0] = Math.max(Date.now(), e[0] + 1); m[k] = e; syncMetaSave(m);
+  if(SYNC.on) syncSchedule();
+}
+// mesmo conteúdo, sem ligar para a ordem dos campos
+function sameData(a, b){
+  if(a === b) return true;
+  if(!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  return ka.length === kb.length && ka.every(k => Object.prototype.hasOwnProperty.call(b, k) && sameData(a[k], b[k]));
+}
+// mesmo número, mas criados em momentos diferentes (ou com outra pergunta/frente): são itens diferentes
+function syncDistinct(x, y){
+  if(!x || !y || typeof x !== 'object' || typeof y !== 'object') return false;
+  const born = ['created', 'criado', 'createdAt', 'at', 'ts'].filter(f => f in x && f in y);
+  if(born.length) return born.some(f => x[f] !== y[f]);
+  return ['q', 'front', 'frente', 'pergunta', 'title', 'titulo', 'nome'].some(f => f in x && f in y && x[f] !== y[f]);
+}
+// quando a mesma parte mudou nos dois aparelhos: junta listas pelo id, contadores pelo maior, o resto fica o mais novo
+function syncMerge(a, b, aNewer){
+  if(a == null) return b;
+  if(b == null) return a;
+  const newer = aNewer ? a : b, older = aNewer ? b : a;
+  if(Array.isArray(a) && Array.isArray(b)){
+    const idOf = x => x && typeof x === 'object' && !Array.isArray(x) && x.id != null ? x.id : null;
+    if(a.length && b.length && a.every(x => idOf(x) !== null) && b.every(x => idOf(x) !== null)){
+      const out = newer.slice(), at = new Map(out.map((x, i) => [idOf(x), i]));
+      const numeric = [...a, ...b].every(x => typeof idOf(x) === 'number');
+      let top = numeric ? Math.max(...a.map(idOf), ...b.map(idOf)) : 0, sigs = null;
+      const sig = x => JSON.stringify(Object.assign({}, x, {id:0}));
+      older.forEach(x => {
+        const i = at.get(idOf(x));
+        if(i === undefined) return out.push(x);
+        if(sameData(out[i], x) || !syncDistinct(out[i], x)) return;
+        // o mesmo número foi usado nos dois aparelhos para coisas diferentes: fica com as duas, esta ganha um número novo
+        sigs = sigs || new Set(out.map(sig));
+        if(!sigs.has(sig(x))) out.push(Object.assign({}, x, {id:numeric ? ++top : `${idOf(x)}-${Math.random().toString(36).slice(2, 6)}`}));
+      });
+      return out;
+    }
+    if(a.every(x => typeof x === 'string') && b.every(x => typeof x === 'string')) return [...new Set([...newer, ...older])];
+    return newer;
+  }
+  if(a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)){
+    const out = {};
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach(f => { out[f] = !(f in b) ? a[f] : !(f in a) ? b[f] : syncMerge(a[f], b[f], aNewer); });
+    // contador do próximo número (ex.: anotações) passa dos números que entraram agora
+    if(typeof out.nextId === 'number') Object.values(out).forEach(v => { if(Array.isArray(v)) v.forEach(x => { if(x && typeof x.id === 'number' && x.id >= out.nextId) out.nextId = x.id + 1; }); });
+    return out;
+  }
+  if(typeof a === 'number' && typeof b === 'number') return Math.max(a, b);
+  return newer;
+}
+// r = {ts, v, del} que veio de outro aparelho. Sem "write", só diz se o valor daqui ia mudar (e anota o que não muda nada).
+function syncResolve(k, r, write, prefix = LS){
+  const m = syncMeta(prefix), raw = localStorage.getItem(prefix + k);
+  const [mt, base] = m[k] || [raw === null ? -1 : 0, -1];
+  if(r.ts <= base) return false;
+  let local; try{ local = raw === null ? undefined : JSON.parse(raw); }catch(err){}
+  let val, gone = false, meta;
+  if(mt <= base || raw === null){ val = r.v; gone = !!r.del; meta = [r.ts, r.ts]; }        // só mudou lá: fica o de lá
+  else if(r.del){ val = local; meta = [Math.max(mt, r.ts + 1), r.ts]; }                 // apagaram lá, mas mudou aqui: fica
+  else {                                                                                  // mudou nos dois: junta
+    val = syncMerge(local, r.v, mt > r.ts);
+    meta = sameData(val, r.v) ? [r.ts, r.ts] : [Math.max(Date.now(), mt, r.ts + 1), r.ts];
+  }
+  const changed = gone ? raw !== null : raw === null || !sameData(val, local);
+  if(changed && !write) return true;
+  if(changed){ try{ if(gone) localStorage.removeItem(prefix + k); else localStorage.setItem(prefix + k, JSON.stringify(val)); }catch(err){ return false; } }
+  m[k] = meta; syncMetaSave(m, prefix);
+  return changed;
+}
+// o que chegou enquanto o app estava aberto entra agora, antes de tudo
+(function syncApplyPending(){
+  let pend = null;
+  try{ pend = JSON.parse(localStorage.getItem(LS + '__pend') || sessionStorage.getItem(LS + '__pend') || 'null'); localStorage.removeItem(LS + '__pend'); sessionStorage.removeItem(LS + '__pend'); }catch(err){}
+  if(!pend || !USER) return;
+  Object.entries(pend).forEach(([k, r]) => { if(!syncSkip(k) && r && typeof r.ts === 'number' && syncResolve(k, r, true)) SYNC.applied++; });
+  if(SYNC.applied && SYNC.fresh){ SYNC.fresh = false; SYNC.firstData = true; try{ sessionStorage.removeItem(GLS + 'syncFresh'); }catch(err){} }   // os dados chegaram
+})();
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 // botões e números usados por várias telas
@@ -1181,10 +1285,17 @@ function readImage(file, max = 1600, quality = .85){
 const imgParts = imgs => (imgs || []).map(i => ({inlineData:{mimeType:i.mime, data:i.data}}));
 const imgHint = imgs => imgs && imgs.length ? `\n\n${imgs.length > 1 ? 'As fotos anexadas são' : 'A foto anexada é'} material do aluno (caderno, livro, prova, exercício ou desenho). Leia com atenção e use como base principal; se algo estiver ilegível, diga.` : '';
 const imagesFrom = list => [...(list || [])].filter(f => f && /^image\//.test(f.type));
+// no iPhone o campo de arquivo precisa estar na página, senão a escolha da galeria às vezes não chega
+function fileInput(set){
+  const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; set(i);
+  i.className = 'sr-only'; i.tabIndex = -1; i.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(i); i.addEventListener('cancel', () => i.remove());
+  return i;
+}
 function pickImageFiles(multiple = true){
   return new Promise(ok => {
-    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = multiple;
-    i.onchange = () => ok([...i.files]); i.click();
+    const i = fileInput(x => { x.multiple = multiple; });
+    i.onchange = () => { ok([...i.files]); i.remove(); }; i.click();
   });
 }
 const CAMERA_ICO = '<svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>';
@@ -1599,6 +1710,19 @@ function openSettings(){
       <button id="set-live-test" type="button" class="${btnSoft} mt-3">Testar servidores</button>
     </section>
     <section class="mt-5 pt-5 border-t border-line">
+      <h3 class="font-bold text-[16px]">Outros aparelhos</h3>
+      <div id="set-sync" class="mt-1"></div>
+    </section>
+    <section class="mt-5 pt-5 border-t border-line">
+      <h3 class="font-bold text-[16px]">Backup</h3>
+      <p class="mt-1 text-[14px] text-ink-2">Um arquivo com tudo do perfil ${ME.nome}, inclusive os arquivos enviados. A chave da IA fica de fora. Guarde no Drive ou mande para o seu e-mail. <span id="set-bk-last" class="font-semibold"></span></p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button id="set-bk-down" type="button" class="${btnPrimary}">Baixar backup</button>
+        <button id="set-bk-up" type="button" class="${btnSoft}">Restaurar backup</button>
+        <input id="set-bk-file" type="file" accept=".json,application/json" class="hidden">
+      </div>
+    </section>
+    <section class="mt-5 pt-5 border-t border-line">
       <h3 class="font-bold text-[16px]">Seus dados</h3>
       <p class="mt-1 text-[14px] text-ink-2">Tudo do perfil ${ME.nome} (anotações, quadro, resumos, flashcards, questões, conversas, XP, boletim e calendário) fica salvo neste navegador. Apagar não mexe no perfil do ${FRIEND.nome}. Os arquivos ficam no banco do navegador e saem também.</p>
       <button id="set-wipe" type="button" class="${btnSoft} mt-3 text-[#B4472F]">Apagar tudo do perfil ${ME.nome}</button>
@@ -1628,6 +1752,11 @@ function openSettings(){
   document.getElementById('set-main').addEventListener('change', e => { SETTINGS.main = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-backup').addEventListener('change', e => { SETTINGS.backup = e.target.value; saveSettings(); paintKeyStatus(); });
   document.getElementById('set-live-test').addEventListener('click', openServerTest);
+  paintSync(); paintBackupLast();
+  document.getElementById('set-sync').addEventListener('click', syncSettingsClick);
+  document.getElementById('set-bk-down').addEventListener('click', e => backupDownload(ME, e.currentTarget));
+  document.getElementById('set-bk-up').addEventListener('click', () => document.getElementById('set-bk-file').click());
+  document.getElementById('set-bk-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if(f) backupRestore(f); });
   paintInstall(); document.getElementById('set-install').addEventListener('click', runInstall);
   document.getElementById('set-sons').addEventListener('change', e => { SETTINGS.sons = e.target.checked; saveSettings(); if(SETTINGS.sons) partySound(false); });
   document.getElementById('set-party').addEventListener('click', () => { closeModal(); celebrateAchievement({id:'demo', icon:'🎉', title:'Assim fica!', desc:'É desse jeito que o Zen comemora cada conquista nova.'}); });
@@ -3990,7 +4119,8 @@ function toast(msg){
   let t = document.getElementById('toast');
   if(!t){
     t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status');
-    t.className = 'fixed z-[60] left-1/2 -translate-x-1/2 bottom-6 max-w-[90vw] rounded-xl bg-forest-900 text-white text-[14px] px-4 py-2.5 shadow-window transition-opacity duration-300';
+    // não pega toques: mesmo invisível ele fica no lugar, e estava em cima do botão de tirar foto
+    t.className = 'pointer-events-none fixed z-[60] left-1/2 -translate-x-1/2 bottom-6 max-w-[90vw] rounded-xl bg-forest-900 text-white text-[14px] px-4 py-2.5 shadow-window transition-opacity duration-300';
     document.body.appendChild(t);
   }
   t.textContent = msg; t.style.opacity = '1';
@@ -4419,6 +4549,7 @@ function publishWho(){
   netPublish(whoTopic(DEVICE), JSON.stringify({v:LIVE_VERSION, me:liveMe(), board:b ? {share:live.share, nome:b.nome} : null, rank:myRankLogs(), ts:Date.now()}), {retain:true});
 }
 function onNetMessage(topic, payload){
+  if(topic.startsWith(SYNC_NS + '/')) return onSyncMessage(topic, payload);   // vínculo entre aparelhos
   const s = payload.toString();
   if(topic.includes('/who/')){
     const dev = topic.split('/').pop(); if(dev === DEVICE) return;
@@ -4712,6 +4843,527 @@ if(USER) setTimeout(() => netStart().then(n => {
   if(b) beginLive(b.share, b.id, b.guest ? 'guest' : 'host');
 }), 1500);
 
+// ---------- Vincular aparelhos (PC, celular...) ----------
+// Um aparelho mostra um código e um QR; o outro digita ou lê. Os dois combinam uma chave secreta (ECDH, conferida
+// pelo código) pelos mesmos servidores do quadro ao vivo e, por ela, recebem a chave do grupo. Depois disso cada parte
+// do perfil fica guardada nos servidores como mensagem "retida", criptografada (AES-GCM) com a chave do grupo:
+// quem abre o app recebe a versão mais nova de cada parte. Os servidores só veem embaralhado.
+const SYNC_NS = `${LIVE_NS}/sync`;
+const SYNC_CHUNK = 60000;
+const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+const JSQR_LIB = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+const te = new TextEncoder(), td = new TextDecoder();
+const b64 = buf => { const a = new Uint8Array(buf); let s = ''; for(let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const sha = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
+const scriptOnce = {};
+function loadScriptOnce(url){
+  return scriptOnce[url] || (scriptOnce[url] = new Promise((ok, no) => {
+    const s = document.createElement('script'); s.src = url; s.onload = ok;
+    s.onerror = () => { delete scriptOnce[url]; s.remove(); no(new Error(url)); };
+    document.head.appendChild(s);
+  }));
+}
+function deviceName(){
+  const ua = navigator.userAgent;
+  if(/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'iPad';
+  if(/iPhone/.test(ua)) return 'iPhone';
+  if(/Android/.test(ua)) return /Mobile/.test(ua) ? 'Celular Android' : 'Tablet Android';
+  if(/CrOS/.test(ua)) return 'Chromebook';
+  if(/Windows/.test(ua)) return 'Computador Windows';
+  if(/Mac/.test(ua)) return 'Mac';
+  return 'Computador';
+}
+const agoTxt = ts => { const s = (Date.now() - ts) / 1000; return s < 90 ? 'agora' : s < 3600 ? `há ${Math.round(s / 60)} min` : s < 86400 ? `há ${Math.round(s / 3600)} h` : s < 172800 ? 'ontem' : `há ${Math.round(s / 86400)} dias`; };
+
+// ---- criptografia ----
+async function gz(bytes, pack){
+  const S = pack ? CompressionStream : DecompressionStream;
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new S('gzip'))).arrayBuffer());
+}
+async function seal(key, obj){
+  let data = te.encode(JSON.stringify(obj)), flag = 0;
+  if(window.CompressionStream){ try{ data = await gz(data, true); flag = 1; }catch(err){} }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, data));
+  const out = new Uint8Array(13 + ct.length); out[0] = flag; out.set(iv, 1); out.set(ct, 13);
+  return b64(out);
+}
+async function unseal(key, s){
+  const a = unb64(s);
+  let data = new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv:a.subarray(1, 13)}, key, a.subarray(13)));
+  if(a[0] === 1) data = await gz(data, false);
+  return JSON.parse(td.decode(data));
+}
+async function syncKey(){
+  const v = store.get('vinculo', null); if(!v || !v.k) return null;
+  if(SYNC.kv !== v.k){
+    SYNC.key = await crypto.subtle.importKey('raw', unb64(v.k), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    SYNC.gid = (await sha('zen-grupo:' + v.k)).slice(0, 24); SYNC.kv = v.k;
+  }
+  return SYNC.key;
+}
+const syncTopic = rest => `${SYNC_NS}/${SYNC.gid}/${rest}`;
+const syncKeys = () => [...new Set([...profileKeys().map(k => k.slice(LS.length)), ...Object.keys(syncMeta())])].filter(k => !syncSkip(k));
+
+// ---- ligar, mandar e receber ----
+async function syncStart(){
+  if(!USER || !window.crypto || !crypto.subtle || !await syncKey()) return;
+  const net = await netStart(); if(!net) return;
+  if(SYNC.on && SYNC.sub === SYNC.gid) return;
+  SYNC.on = true; SYNC.sub = SYNC.gid;
+  netSubscribe(syncTopic('#'));
+  net.clients.forEach(c => c.on('connect', () => { syncHello(); setTimeout(() => syncPush(true), 4000); }));   // conectou (ou voltou a internet): avisa e manda o que ficou
+  syncHello();
+  setTimeout(() => syncPush(true), 5000);     // depois de receber o que está guardado, manda o que só este aparelho tem
+  clearInterval(SYNC.timer);
+  SYNC.timer = setInterval(() => { syncHello(); syncPush(false); }, 60000);
+  paintSync();
+}
+function syncSchedule(){ clearTimeout(SYNC.st); SYNC.st = setTimeout(() => syncPush(false), 3000); }
+async function syncPush(first){
+  if(!SYNC.on || !liveOnline()) return;
+  if(SYNC.pushing){ SYNC.again = true; return; }
+  SYNC.pushing = true;
+  try{
+    let pend = {}; try{ pend = JSON.parse(localStorage.getItem(LS + '__pend') || sessionStorage.getItem(LS + '__pend') || '{}'); }catch(err){}
+    for(const k of syncKeys()){
+      if(pend[k]) continue;        // chegou novidade dessa parte: junta ao atualizar e só depois manda
+      const e = syncMeta()[k] || [0, -1];
+      const fresh = first && !(k in SYNC.seen) && localStorage.getItem(LS + k) !== null;   // lá ainda não tem
+      if(!(e[0] > e[1]) && !fresh && !SYNC.repush.has(k)) continue;
+      const ts = Math.max(e[0], 1);
+      if(!await syncSend(k, ts)) break;
+      SYNC.repush.delete(k);
+      const m = syncMeta(), now = m[k] || [ts, -1];
+      m[k] = [Math.max(now[0], ts), Math.max(now[1], ts)]; syncMetaSave(m);
+      SYNC.seen[k] = Math.max(SYNC.seen[k] || 0, ts);
+    }
+    SYNC.sent = Date.now();
+  }catch(err){}
+  SYNC.pushing = false;
+  if(SYNC.again){ SYNC.again = false; syncSchedule(); }
+  paintSync();
+}
+async function syncSend(k, ts){
+  const raw = localStorage.getItem(LS + k);
+  let v = null; try{ v = raw === null ? null : JSON.parse(raw); }catch(err){ return true; }
+  const blob = await seal(SYNC.key, {k, ts, v, del:raw === null, dev:DEVICE});
+  const ver = ts.toString(36) + wbId().slice(0, 4), n = Math.max(1, Math.ceil(blob.length / SYNC_CHUNK));
+  let ok = 0;
+  for(let i = 0; i < n; i++) ok = netPublish(syncTopic(`k/${k}/${i}`), JSON.stringify({ver, i, n, d:blob.slice(i * SYNC_CHUNK, (i + 1) * SYNC_CHUNK)}), {retain:true});
+  for(let i = n; i < (SYNC.chunks[k] || 0); i++) netPublish(syncTopic(`k/${k}/${i}`), '', {retain:true});   // pedaços que sobraram da versão maior
+  SYNC.chunks[k] = n;
+  return ok > 0;
+}
+async function syncHello(){
+  if(!SYNC.on) return;
+  netPublish(syncTopic('d/' + DEVICE), JSON.stringify({d:await seal(SYNC.key, {nome:deviceName(), visto:Date.now()})}), {retain:true});
+}
+async function onSyncMessage(topic, payload){
+  if(!SYNC.on) return;
+  const s = payload.toString(), parts = topic.slice(SYNC_NS.length + 1).split('/');
+  if(!s || parts[0] !== SYNC.gid) return;
+  let d; try{ d = JSON.parse(s); }catch(err){ return; }
+  if(parts[1] === 'd'){                                   // outro aparelho do grupo dizendo que está aqui
+    if(parts[2] === DEVICE) return;
+    try{ SYNC.devs[parts[2]] = await unseal(SYNC.key, d.d); paintSync(); }catch(err){}
+    return;
+  }
+  const k = parts[2];
+  if(parts[1] !== 'k' || !k || syncSkip(k) || typeof d.d !== 'string') return;
+  const id = `${k}:${d.ver}`; if(SYNC.done.has(id)) return;
+  const vers = SYNC.parts[k] = SYNC.parts[k] || {};
+  const slot = vers[d.ver] = vers[d.ver] || {n:Math.max(1, +d.n || 1), got:{}};
+  slot.got[d.i] = d.d;
+  if(Object.keys(slot.got).length < slot.n) return;
+  delete vers[d.ver]; SYNC.done.add(id);
+  let r; try{ r = await unseal(SYNC.key, Array.from({length:slot.n}, (_, i) => slot.got[i] || '').join('')); }catch(err){ return; }
+  if(!r || r.k !== k || typeof r.ts !== 'number') return;
+  SYNC.seen[k] = Math.max(SYNC.seen[k] || 0, r.ts); SYNC.got = Date.now();
+  if(r.dev !== DEVICE){
+    const e = syncMeta()[k];
+    if(e && r.ts < e[1] && e[0] === e[1]){ SYNC.repush.add(k); syncSchedule(); }   // o servidor ficou com uma versão velha
+    else if(syncResolve(k, r, false)) syncPend(k, r);
+    else if(syncMeta()[k] && syncMeta()[k][0] > syncMeta()[k][1]) syncSchedule();
+  }
+  paintSync();
+}
+// guarda o que chegou para aplicar ao recarregar (as telas já leram os dados antigos)
+function syncPend(k, r){
+  const read = () => { try{ return JSON.parse(localStorage.getItem(LS + '__pend') || sessionStorage.getItem(LS + '__pend') || '{}'); }catch(err){ return {}; } };
+  const pend = read();
+  if(pend[k] && pend[k].ts >= r.ts) return;
+  pend[k] = r;
+  const s = JSON.stringify(pend);
+  try{ localStorage.setItem(LS + '__pend', s); }catch(err){ try{ sessionStorage.setItem(LS + '__pend', s); }catch(err2){} }
+  SYNC.pending = true;
+  syncNeedReload();
+}
+// logo ao abrir (sem ter mexido em nada) recarrega sozinho; depois, mostra um aviso com o botão Atualizar
+function syncNeedReload(){
+  let fresh = 0, last = 0;
+  try{ fresh = +sessionStorage.getItem(GLS + 'syncFresh') || 0; last = +sessionStorage.getItem(GLS + 'syncReload') || 0; }catch(err){}
+  const quiet = !SYNC.touched && (performance.now() < 15000 || Date.now() - fresh < 90000);
+  if(quiet && Date.now() - last > 20000){ clearTimeout(SYNC.rt); SYNC.rt = setTimeout(syncReloadNow, 2500); return; }
+  showSyncBar();
+}
+function syncReloadNow(){ try{ sessionStorage.setItem(GLS + 'syncReload', Date.now()); }catch(err){} location.reload(); }
+function showSyncBar(){
+  if(document.getElementById('sync-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'sync-bar'; bar.setAttribute('role', 'status');
+  bar.className = 'fixed z-[45] left-1/2 -translate-x-1/2 top-[max(12px,env(safe-area-inset-top))] w-[calc(100%-32px)] max-w-[460px] flex items-center gap-3 rounded-2xl bg-forest-900 text-[#F3F1E6] shadow-window pl-4 pr-2 py-2';
+  bar.innerHTML = `<span class="flex-1 text-[14px] leading-snug">Chegaram novidades do seu outro aparelho.</span>
+    <button type="button" class="shrink-0 rounded-xl bg-amber text-ink font-semibold text-[14px] px-3.5 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Atualizar</button>`;
+  bar.querySelector('button').addEventListener('click', syncReloadNow);
+  document.body.appendChild(bar);
+}
+['pointerdown', 'keydown'].forEach(t => addEventListener(t, () => { SYNC.touched = true; }, {capture:true, once:true}));
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){ SYNC.hiddenAt = Date.now(); syncPush(false); }
+  else if(SYNC.pending && Date.now() - (SYNC.hiddenAt || 0) > 120000) syncReloadNow();   // voltou ao app depois de um tempo
+});
+if(SYNC.applied) setTimeout(() => toast(SYNC.firstData ? 'Pronto! Seus dados chegaram do outro aparelho. 🦫' : 'Atualizado com o que você fez no outro aparelho. 🦫'), 900);
+else { try{ if(Date.now() - (+sessionStorage.getItem(GLS + 'syncFresh') || 0) < 60000) setTimeout(() => toast('Vinculado! Trazendo seus dados do outro aparelho...'), 900); }catch(err){} }
+if(USER) setTimeout(syncStart, 1800);
+
+// cria a chave do grupo (na primeira vez) e faz os dados deste aparelho valerem como os mais novos
+async function syncEnsureLink(){
+  if(!store.get('vinculo', null)){
+    const m = syncMeta(), now = Date.now();
+    syncKeys().forEach(k => { m[k] = [Math.max(now, (m[k] || [0])[0]), -1]; });
+    syncMetaSave(m);
+    store.set('vinculo', {k:b64(crypto.getRandomValues(new Uint8Array(32))), desde:now});
+  }
+  await syncStart();
+  return store.get('vinculo', null);
+}
+async function syncUnlink(){
+  if(!confirm('Desvincular este aparelho? Os dados que já estão aqui continuam, mas param de passar para os outros aparelhos.')) return;
+  if(SYNC.on){ netPublish(syncTopic('d/' + DEVICE), '', {retain:true}); netUnsubscribe(syncTopic('#')); }
+  SYNC.on = false; SYNC.sub = null; SYNC.kv = null; SYNC.devs = {}; clearInterval(SYNC.timer);
+  store.del('vinculo');
+  paintSync(); toast('Este aparelho foi desvinculado.');
+}
+
+// ---- Configurações: "Outros aparelhos" ----
+function paintSync(){
+  const el = document.getElementById('set-sync'); if(!el) return;
+  const v = store.get('vinculo', null);
+  if(!window.crypto || !crypto.subtle){ el.innerHTML = '<p class="text-[14px] text-ink-2">Para vincular, abra o app pelo endereço do site (https://).</p>'; return; }
+  if(!v){
+    el.innerHTML = `<p class="text-[14px] text-ink-2">Leve tudo do perfil ${ME.nome} para o celular ou outro computador. Os aparelhos ficam vinculados: o que você faz em um aparece no outro. Comece pelo aparelho que já tem seus dados.</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" data-sync="show" class="${btnPrimary}">Vincular outro aparelho</button>
+        <button type="button" data-sync="join" class="${btnSoft}">Tenho um código</button>
+      </div>`;
+    return;
+  }
+  const devs = Object.values(SYNC.devs).filter(d => d && d.nome).sort((a, b) => b.visto - a.visto);
+  const online = SYNC.on && liveOnline();
+  el.innerHTML = `<p class="text-[14px] text-ink-2"><b class="text-forest-700">Vinculado.</b> O que você faz aqui aparece nos outros aparelhos (e o contrário) quando eles abrem o app.</p>
+    <ul class="mt-3 rounded-xl border border-line divide-y divide-line text-[14px]">
+      <li class="flex items-center gap-3 px-3.5 py-2.5"><span class="w-2 h-2 rounded-full ${online ? 'bg-forest-500' : 'bg-[#C9B98F]'}" aria-hidden="true"></span><span class="flex-1"><b>${esc(deviceName())}</b> (este)</span><span class="text-muted text-[13px]">${online ? (SYNC.pushing ? 'enviando...' : 'em dia') : 'sem conexão agora'}</span></li>
+      ${devs.map(d => `<li class="flex items-center gap-3 px-3.5 py-2.5"><span class="w-2 h-2 rounded-full ${Date.now() - d.visto < 150000 ? 'bg-forest-500' : 'bg-line'}" aria-hidden="true"></span><span class="flex-1">${esc(String(d.nome).slice(0, 40))}</span><span class="text-muted text-[13px]">visto ${agoTxt(d.visto)}</span></li>`).join('')
+        || `<li class="px-3.5 py-2.5 text-muted">${online ? 'Procurando os outros aparelhos...' : 'Os outros aparelhos aparecem aqui quando houver internet.'}</li>`}
+    </ul>
+    ${SYNC.pending ? `<p class="mt-2 text-[14px]">Chegaram novidades. <button type="button" data-sync="reload" class="font-semibold text-forest-500 underline underline-offset-2">Atualizar agora</button></p>` : ''}
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="button" data-sync="show" class="${btnSoft}">Vincular mais um aparelho</button>
+      <button type="button" data-sync="unlink" class="${btnSoft} text-[#B4472F]">Desvincular este aparelho</button>
+    </div>`;
+}
+function syncSettingsClick(e){
+  const b = e.target.closest('[data-sync]'); if(!b) return;
+  const a = b.dataset.sync;
+  if(a === 'show') openLinkShow();
+  if(a === 'join') openLinkJoin('');
+  if(a === 'unlink') syncUnlink();
+  if(a === 'reload') syncReloadNow();
+}
+document.addEventListener('click', e => { if(e.target.closest('[data-link-join]')) openLinkJoin(''); });
+
+// ---- o encontro dos dois aparelhos (só durante o vínculo; usa conexões próprias) ----
+async function pairNet(topic, onMsg){
+  await loadMqtt();
+  const cs = [];
+  LIVE_BROKERS.forEach(br => {
+    try{
+      const c = mqtt.connect(br.url, {clientId:'zenp_' + wbId(), clean:true, connectTimeout:10000, reconnectPeriod:3000});
+      c.on('connect', () => c.subscribe(topic, {qos:1}));
+      c.on('message', (t, p) => onMsg(p.toString()));
+      c.on('error', () => {});
+      cs.push(c);
+    }catch(err){}
+  });
+  return {
+    pub:s => cs.forEach(c => { if(c.connected){ try{ c.publish(topic, s, {qos:1}); }catch(err){} } }),
+    end:() => cs.forEach(c => { try{ c.end(true); }catch(err){} })
+  };
+}
+async function pairSecrets(code){
+  const base = await crypto.subtle.importKey('raw', te.encode(code), 'PBKDF2', false, ['deriveKey']);
+  const mac = await crypto.subtle.deriveKey({name:'PBKDF2', salt:te.encode('zen-estudos-vinculo'), iterations:150000, hash:'SHA-256'}, base, {name:'HMAC', hash:'SHA-256', length:256}, false, ['sign', 'verify']);
+  return {mac, topic:`${SYNC_NS}/par/${(await sha('zen-par:' + code)).slice(0, 24)}`};
+}
+const pairSign = async (key, s) => b64(await crypto.subtle.sign('HMAC', key, te.encode(s)));
+const pairCheck = async (key, s, sig) => { try{ return await crypto.subtle.verify('HMAC', key, unb64(sig), te.encode(s)); }catch(err){ return false; } };
+async function ecdhPair(){
+  const kp = await crypto.subtle.generateKey({name:'ECDH', namedCurve:'P-256'}, false, ['deriveBits']);
+  return {kp, pub:b64(await crypto.subtle.exportKey('raw', kp.publicKey))};
+}
+async function ecdhShared(kp, otherPub, code){
+  const pub = await crypto.subtle.importKey('raw', unb64(otherPub), {name:'ECDH', namedCurve:'P-256'}, false, []);
+  const bits = await crypto.subtle.deriveBits({name:'ECDH', public:pub}, kp.privateKey, 256);
+  const hk = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'HKDF', hash:'SHA-256', salt:te.encode('zen-vinculo'), info:te.encode(code)}, hk, {name:'AES-GCM', length:256}, false, ['encrypt', 'decrypt']);
+}
+const linkStatus = (html, tone) => {
+  const s = document.getElementById('lk-status'); if(!s) return;
+  s.className = `mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-[14.5px] ${tone === 'ok' ? 'bg-forest-100 border-forest-300 text-forest-900' : tone === 'bad' ? 'bg-[#FBE9E4] border-[#EBC0B4] text-[#8E3522]' : 'bg-cream border-line'}`;
+  s.innerHTML = html;
+};
+const fmtCode = c => c.length > 3 ? `${c.slice(0, 3)} ${c.slice(3)}` : c;
+
+// aparelho que já tem os dados: mostra o código
+async function openLinkShow(){
+  const code = liveShareId(), url = `${location.origin}${location.pathname}?vincular=${code}`;
+  openModal(`${modalHead('Vincular outro aparelho')}
+    <p class="mt-2 text-[14.5px] text-ink-2 leading-relaxed">No outro aparelho, abra o Zen Estudos e toque em <b>Configurações → Tenho um código</b>. No celular, também dá para apontar a câmera para o QR.</p>
+    <div class="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+      <div id="lk-qr" class="w-[184px] h-[184px] rounded-xl bg-white border border-line grid place-items-center p-2 text-[13px] text-muted">Gerando o QR...</div>
+      <div class="text-center">
+        <p class="text-[13.5px] text-ink-2">Código</p>
+        <p class="mt-1 font-mono text-[34px] font-extrabold tracking-[.16em] text-forest-700" aria-label="Código: ${code.split('').join(' ')}">${fmtCode(code)}</p>
+        <p class="mt-1 text-[13px] text-muted">Vale por 10 minutos</p>
+      </div>
+    </div>
+    <div id="lk-status" aria-live="polite"></div>`);
+  linkStatus(`${spinner}<span>Esperando o outro aparelho...</span>`);
+  loadScriptOnce(QR_LIB).then(() => {
+    const el = document.getElementById('lk-qr'); if(!el) return;
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    el.innerHTML = q.createSvgTag({cellSize:4, margin:2, scalable:true});
+    const sv = el.querySelector('svg'); if(sv){ sv.setAttribute('class', 'w-full h-full'); sv.setAttribute('role', 'img'); sv.setAttribute('aria-label', 'QR para vincular'); }
+  }).catch(() => { const el = document.getElementById('lk-qr'); if(el) el.textContent = 'O QR não carregou. Use o código.'; });
+  const sec = await pairSecrets(code), me = await ecdhPair(), until = Date.now() + 600000;
+  let peerP = null, peer = null, done = false;
+  const net = await pairNet(sec.topic, async s => {
+    let d; try{ d = JSON.parse(s); }catch(err){ return; }
+    if(done || !d) return;
+    if(d.t === 'b' && typeof d.pub === 'string'){
+      // a mesma mensagem chega por até 3 servidores: só o primeiro pedido válido vira o par
+      if(!peerP) peerP = (async () => {
+        if(!await pairCheck(sec.mac, 'b|' + d.pub, d.mac)){ peerP = null; return null; }
+        const link = await syncEnsureLink(), ks = await ecdhShared(me.kp, d.pub, code);
+        const p = {pub:d.pub, nome:String(d.nome || 'outro aparelho').slice(0, 40)};
+        p.reply = JSON.stringify({t:'a', pub:me.pub, mac:await pairSign(sec.mac, `a|${me.pub}|${d.pub}`),
+          box:await seal(ks, {link:link.k, pid:ME.id, nome:ME.nome, de:deviceName(), api:getKey() || ''})});
+        linkStatus(`${spinner}<span>Achei o <b>${esc(p.nome)}</b>. Esperando confirmar lá...</span>`);
+        return (peer = p);
+      })();
+      const p = await peerP;
+      if(p && p.pub === d.pub && !done) net.pub(p.reply);
+    }
+    if((d.t === 'ok' || d.t === 'no') && peer && await pairCheck(sec.mac, `${d.t}|${peer.pub}`, d.mac)){
+      if(done) return;
+      done = true; net.end();
+      if(d.t === 'no') return linkStatus('<span>O outro aparelho cancelou. Feche e tente de novo quando quiser.</span>', 'bad');
+      linkStatus(`<span><b>Pronto! O ${esc(peer.nome)} foi vinculado.</b> Seus dados estão indo para lá agora. Deixe o app aberto nos dois por alguns segundos.</span>`, 'ok');
+      paintSync();
+    }
+  });
+  const tick = setInterval(() => {
+    if(done || !document.getElementById('lk-status')){ clearInterval(tick); if(!done) net.end(); return; }
+    if(Date.now() > until){ clearInterval(tick); net.end(); linkStatus('<span>O código venceu. Feche e gere outro.</span>', 'bad'); }
+  }, 1000);
+}
+
+// aparelho novo: digita (ou lê) o código e recebe os dados
+function openLinkJoin(code0){
+  if(!window.crypto || !crypto.subtle) return toast('Para vincular, abra o app pelo endereço do site (https://).');
+  openModal(`${modalHead('Entrar com um código')}
+    <p class="mt-2 text-[14.5px] text-ink-2 leading-relaxed">No aparelho que já tem seus dados, vá em <b>Configurações → Vincular outro aparelho</b> e digite aqui o código que aparecer.</p>
+    <form id="lk-form" class="mt-4 flex flex-wrap gap-2">
+      <label class="flex-1 min-w-[170px]"><span class="sr-only">Código de 6 letras e números</span>
+        <input id="lk-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="7" class="${fieldCls} font-mono !text-[22px] tracking-[.18em] uppercase text-center" placeholder="ABC 123" value="${esc(fmtCode(code0 || ''))}"></label>
+      <button type="submit" class="${btnPrimary}">Vincular</button>
+    </form>
+    <button type="button" id="lk-scan" class="${btnSoft} mt-2 !py-2 !text-[14px]">Ler o QR com a câmera</button>
+    <div id="lk-cam" class="hidden mt-3 relative mx-auto max-w-[300px]"><video playsinline muted class="w-full aspect-square object-cover rounded-xl bg-black"></video>
+      <span class="absolute inset-[18%] rounded-xl border-2 border-white/80 pointer-events-none" aria-hidden="true"></span></div>
+    <div id="lk-status" aria-live="polite"></div>
+    ${USER ? '' : `<button type="button" id="lk-back" class="${btnSoft} mt-4 !py-2 !text-[14px]">Voltar</button>`}`);
+  const input = document.getElementById('lk-code');
+  const clean = v => v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  input.addEventListener('input', () => { const c = clean(input.value); input.value = fmtCode(c); });
+  document.getElementById('lk-form').addEventListener('submit', e => { e.preventDefault(); const c = clean(input.value); if(c.length === 6) linkJoinRun(c); else linkStatus('<span>O código tem 6 letras e números.</span>', 'bad'); });
+  document.getElementById('lk-scan').addEventListener('click', () => linkScan(c => { input.value = fmtCode(c); linkJoinRun(c); }));
+  const back = document.getElementById('lk-back'); if(back) back.addEventListener('click', () => openProfilePicker(true));
+  if(clean(code0 || '').length === 6) linkJoinRun(clean(code0));
+}
+async function linkJoinRun(code){
+  if(linkJoinRun.busy === code) return;
+  linkJoinRun.busy = code;
+  const form = document.getElementById('lk-form'); if(form) form.querySelector('button').disabled = true;
+  linkStatus(`${spinner}<span>Procurando o outro aparelho...</span>`);
+  const sec = await pairSecrets(code), me = await ecdhPair(), until = Date.now() + 90000;
+  const hello = JSON.stringify({t:'b', pub:me.pub, nome:deviceName(), mac:await pairSign(sec.mac, 'b|' + me.pub)});
+  let got = false;
+  const stop = () => { clearInterval(tick); net.end(); linkJoinRun.busy = null; };
+  const net = await pairNet(sec.topic, async s => {
+    let d; try{ d = JSON.parse(s); }catch(err){ return; }
+    if(got || !d || d.t !== 'a' || typeof d.pub !== 'string') return;
+    if(!await pairCheck(sec.mac, `a|${d.pub}|${me.pub}`, d.mac)) return;
+    let info; try{ info = await unseal(await ecdhShared(me.kp, d.pub, code), d.box); }catch(err){ return; }
+    if(got || !info || !PROFILES[info.pid] || !info.link) return;
+    got = true; clearInterval(tick);
+    linkConfirm(info, async ok => {
+      const msg = JSON.stringify({t:ok ? 'ok' : 'no', mac:await pairSign(sec.mac, `${ok ? 'ok' : 'no'}|${me.pub}`)});
+      for(let i = 0; i < 3; i++){ net.pub(msg); await new Promise(r => setTimeout(r, 500)); }
+      net.end(); linkJoinRun.busy = null;
+    });
+  });
+  const tick = setInterval(() => {
+    if(!document.getElementById('lk-status')) return stop();
+    if(Date.now() > until){
+      stop(); if(form) form.querySelector('button').disabled = false;
+      return linkStatus('<span>Não achei o outro aparelho. Confira o código e se ele ainda está aparecendo na tela de lá.</span>', 'bad');
+    }
+    net.pub(hello);
+  }, 2000);
+}
+// chegou o convite: se este aparelho já tem dados do perfil, avisa antes de trocar
+function linkConfirm(info, answer){
+  const p = PROFILES[info.pid], has = keysOf(p).some(k => !syncSkip(k.slice(p.prefix.length)));
+  const accept = async () => {
+    await answer(true);
+    try{
+      const m = {};
+      keysOf(p).forEach(k => { const s = k.slice(p.prefix.length); if(!syncSkip(s)) m[s] = [0, 0]; });   // os dados de lá ganham
+      localStorage.setItem(p.prefix + '__mt', JSON.stringify(m));
+      localStorage.setItem(p.prefix + 'vinculo', JSON.stringify({k:info.link, desde:Date.now()}));
+      if(info.api && !getKey()) setKey(info.api, true);
+      gstore.set('profile', p.id);
+      sessionStorage.setItem(GLS + 'perfilEscolhido', '1'); sessionStorage.setItem(GLS + 'syncFresh', Date.now());
+    }catch(err){ return linkStatus('<span>Não deu para salvar neste navegador.</span>', 'bad'); }
+    linkStatus(`<span><b>Vinculado!</b> Abrindo como ${esc(p.nome)}...</span>`, 'ok');
+    window.__wiping = true;
+    setTimeout(() => location.reload(), 900);
+  };
+  if(!has) return accept();
+  linkStatus(`<div class="flex-1"><p><b>Este aparelho já tem dados do ${esc(p.nome)}.</b> Eles vão ser trocados pelos do ${esc(info.de || 'outro aparelho')}. O que só existe aqui continua.</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="button" data-lk="ok" class="${btnPrimary} !py-2 !text-[14px]">Vincular e trazer os dados</button>
+      <button type="button" data-lk="bk" class="${btnSoft} !py-2 !text-[14px]">Baixar backup daqui antes</button>
+      <button type="button" data-lk="no" class="${btnSoft} !py-2 !text-[14px]">Cancelar</button>
+    </div></div>`);
+  document.getElementById('lk-status').addEventListener('click', e => {
+    const b = e.target.closest('[data-lk]'); if(!b) return;
+    if(b.dataset.lk === 'ok') accept();
+    if(b.dataset.lk === 'bk') backupDownload(p, b);
+    if(b.dataset.lk === 'no'){ answer(false); linkStatus('<span>Cancelado. Nada mudou neste aparelho.</span>'); }
+  });
+}
+// ler o QR pela câmera (BarcodeDetector no Android; jsQR no iPhone)
+async function linkScan(onCode){
+  const box = document.getElementById('lk-cam'), video = box && box.querySelector('video'); if(!video) return;
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false}); }
+  catch(err){ return linkStatus('<span>Não deu para abrir a câmera. Digite o código.</span>', 'bad'); }
+  box.classList.remove('hidden'); video.srcObject = stream; video.play().catch(() => {});
+  let det = null;
+  if('BarcodeDetector' in window){ try{ det = new BarcodeDetector({formats:['qr_code']}); }catch(err){} }
+  if(!det) await loadScriptOnce(JSQR_LIB).catch(() => {});
+  const cv = document.createElement('canvas'), ctx = cv.getContext('2d', {willReadFrequently:true});
+  const stop = () => { stream.getTracks().forEach(t => t.stop()); box.classList.add('hidden'); };
+  const loop = async () => {
+    if(!document.body.contains(box) || box.classList.contains('hidden')) return stop();
+    let txt = null;
+    try{
+      if(det){ const r = await det.detect(video); txt = r[0] && r[0].rawValue; }
+      else if(window.jsQR && video.videoWidth){
+        const w = 480, h = Math.round(w * video.videoHeight / video.videoWidth); cv.width = w; cv.height = h;
+        ctx.drawImage(video, 0, 0, w, h); const r = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, {inversionAttempts:'dontInvert'}); txt = r && r.data;
+      }
+    }catch(err){}
+    const m = txt && (/vincular=([A-Za-z0-9]{6})/.exec(txt) || /^\s*([A-Za-z0-9]{6})\s*$/.exec(txt));
+    if(m){ stop(); onCode(m[1].toUpperCase()); return; }
+    setTimeout(loop, 250);
+  };
+  loop();
+}
+// abriu pelo QR (endereço com ?vincular=CODIGO)
+function linkFromUrl(){
+  const c = new URLSearchParams(location.search).get('vincular'); if(!c) return false;
+  history.replaceState(null, '', location.pathname + location.hash);
+  openLinkJoin(c);
+  return true;
+}
+
+// ---------- Backup em arquivo ----------
+function idbOpen(name){
+  return new Promise((ok, no) => { const r = indexedDB.open(name, 1); r.onupgradeneeded = () => r.result.createObjectStore('files', {keyPath:'id'}); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+}
+async function idbAll(name){
+  const db = await idbOpen(name);
+  return new Promise((ok, no) => { const q = db.transaction('files').objectStore('files').getAll(); q.onsuccess = () => { ok(q.result); db.close(); }; q.onerror = () => no(q.error); });
+}
+async function idbReplace(name, recs){
+  const db = await idbOpen(name);
+  return new Promise((ok, no) => { const t = db.transaction('files', 'readwrite'), s = t.objectStore('files'); s.clear(); recs.forEach(r => s.put(r)); t.oncomplete = () => { db.close(); ok(); }; t.onerror = () => no(t.error); });
+}
+const blobToData = b => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(b); });
+async function backupMake(p){
+  const dados = {};
+  keysOf(p).forEach(full => { const k = full.slice(p.prefix.length); if(syncSkip(k)) return; try{ dados[k] = JSON.parse(localStorage.getItem(full)); }catch(err){} });
+  let arquivos = [];
+  try{ arquivos = await Promise.all((await idbAll(p.prefix + 'arquivos')).map(async r => Object.assign({}, r, {blob:r.blob ? await blobToData(r.blob) : null}))); }catch(err){}
+  return {app:'zen-estudos', tipo:'backup', versao:1, criado:new Date().toISOString(), perfil:p.id, nome:p.nome, dados, arquivos};
+}
+function paintBackupLast(){
+  const el = document.getElementById('set-bk-last'); if(!el) return;
+  const t = store.get('ultimoBackup', 0);
+  el.textContent = t ? `Último backup: ${agoTxt(t) === 'agora' ? 'agora há pouco' : agoTxt(t)}.` : 'Ainda não tem nenhum backup.';
+  el.classList.toggle('text-[#B4472F]', !t || Date.now() - t > 14 * 864e5);
+}
+async function backupDownload(p, btn){
+  if(btn) btn.disabled = true;
+  try{
+    const blob = new Blob([JSON.stringify(await backupMake(p))], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `zen-estudos-${p.id}-${dayKey()}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    try{ localStorage.setItem(p.prefix + 'ultimoBackup', JSON.stringify(Date.now())); }catch(err){}
+    paintBackupLast(); toast(`Backup do ${p.nome} baixado (${fmtSize(blob.size)}).`);
+  }catch(err){ toast('Não deu para gerar o backup.'); }
+  if(btn) btn.disabled = false;
+}
+async function backupRestore(file){
+  let b = null; try{ b = JSON.parse(await file.text()); }catch(err){}
+  if(!b || b.app !== 'zen-estudos' || !b.dados || typeof b.dados !== 'object' || !PROFILES[b.perfil]) return toast('Esse arquivo não é um backup do Zen Estudos.');
+  const p = PROFILES[b.perfil], when = new Date(b.criado), linked = !!localStorage.getItem(p.prefix + 'vinculo');
+  const nParts = Object.keys(b.dados).length, nFiles = (b.arquivos || []).length;
+  openModal(`${modalHead('Restaurar backup')}
+    <p class="mt-3 text-[15px] leading-relaxed">Backup do <b>${esc(p.nome)}</b> de ${isNaN(when) ? 'data desconhecida' : when.toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'})}, com ${nParts} ${nParts === 1 ? 'parte' : 'partes'} e ${nFiles} ${nFiles === 1 ? 'arquivo' : 'arquivos'}.</p>
+    <p class="mt-2 text-[14.5px] text-ink-2 leading-relaxed">Tudo do perfil ${esc(p.nome)} neste aparelho vai ser trocado pelo que está no backup.${linked ? ' Os aparelhos vinculados também recebem.' : ''}${p.id !== ME.id ? ` O app vai abrir como ${esc(p.nome)}.` : ''}</p>
+    <div class="mt-5 flex flex-wrap gap-2"><button type="button" id="bk-go" class="${btnPrimary}">Restaurar</button><button type="button" data-close class="${btnSoft}">Cancelar</button></div>
+    <p id="bk-msg" class="mt-2 text-[14px] min-h-[1.4em]" aria-live="polite"></p>`);
+  document.getElementById('bk-go').addEventListener('click', async e => {
+    e.currentTarget.disabled = true;
+    try{
+      const m = syncMeta(p.prefix), now = Date.now();
+      keysOf(p).forEach(full => { const k = full.slice(p.prefix.length); if(!syncSkip(k)){ localStorage.removeItem(full); if(m[k]) m[k][0] = now; } });
+      Object.entries(b.dados).forEach(([k, v]) => { if(syncSkip(k)) return; localStorage.setItem(p.prefix + k, JSON.stringify(v)); m[k] = [now, (m[k] || [0, -1])[1]]; });
+      syncMetaSave(m, p.prefix);
+      await idbReplace(p.prefix + 'arquivos', await Promise.all((b.arquivos || []).filter(r => r && r.id != null).map(async r => Object.assign({}, r, {blob:r.blob ? await (await fetch(r.blob)).blob() : null}))));
+    }catch(err){ document.getElementById('bk-msg').textContent = 'Não coube tudo no navegador. Libere espaço e tente de novo.'; return; }
+    window.onbeforeunload = null; window.__wiping = true;
+    gstore.set('profile', p.id);
+    try{ sessionStorage.setItem(GLS + 'perfilEscolhido', '1'); }catch(err){}
+    location.reload();
+  });
+}
 // ---------- Conversa da dupla no quadro ao vivo ----------
 // Vale enquanto os dois estão no mesmo quadro ao vivo (como no original, não fica guardada)
 document.getElementById('wb-chat-in').placeholder = `Mensagem para o ${FRIEND.nome}...`;
@@ -5380,15 +6032,15 @@ async function openHwCamera(file, opts = {}){
       <div id="hwc-live" class="absolute inset-0">
         <video id="hwc-video" class="absolute inset-0 w-full h-full object-cover" playsinline muted autoplay></video>
         <div id="hwc-msg" class="hidden absolute inset-0 grid place-items-center p-6 text-center"></div>
-        <div id="hwc-frame" class="hw-frame absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[18px]" aria-hidden="true"><i class="hw-c tl"></i><i class="hw-c tr"></i><i class="hw-c bl"></i><i class="hw-c br"></i></div>
-        <p id="hwc-hint" class="absolute left-0 right-0 top-4 text-center text-[14px] font-semibold drop-shadow" aria-live="polite"></p>
+        <div id="hwc-frame" class="hw-frame absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-[18px]" aria-hidden="true"><i class="hw-c tl" data-fh></i><i class="hw-c tr" data-fh></i><i class="hw-c bl" data-fh></i><i class="hw-c br" data-fh></i></div>
+        <p id="hwc-hint" class="absolute left-0 right-0 top-3 mx-auto w-fit max-w-[92%] rounded-2xl bg-black/50 px-3.5 py-1.5 text-center text-[13.5px] font-semibold leading-snug pointer-events-none empty:hidden" aria-live="polite"></p>
         <div id="hwc-zoom" class="hidden absolute left-1/2 -translate-x-1/2 bottom-3 rounded-full bg-black/45 p-1 text-[13px] font-bold"></div>
       </div>
       <div id="hwc-crop" class="hidden absolute inset-0">
         <div id="hwc-cwrap" class="absolute"><div id="hwc-box" class="hw-crop absolute touch-none" tabindex="-1">
           ${['nw', 'ne', 'sw', 'se'].map(h => `<span data-h="${h}" class="hw-h hw-h-${h}"></span>`).join('')}
         </div></div>
-        <p class="absolute left-0 right-0 top-3 text-center text-[14px] font-semibold drop-shadow">Arraste os cantos para deixar só ${hwPref.mode === 'pagina' ? 'o que o Zen deve resolver' : 'a questão'}</p>
+        <p id="hwc-crop-hint" class="absolute left-0 right-0 top-2 mx-auto w-fit max-w-[92%] rounded-2xl bg-black/50 px-3.5 py-1.5 text-center text-[13.5px] font-semibold leading-snug pointer-events-none" aria-live="polite"></p>
       </div>
     </div>
     <div class="pb-[max(14px,env(safe-area-inset-bottom))]">
@@ -5426,33 +6078,39 @@ function closeHwCamera(){
 function hwStopStream(){ if(hwCam && hwCam.stream){ hwCam.stream.getTracks().forEach(t => t.stop()); hwCam.stream = hwCam.track = null; hwCam.torch = false; } }
 const hwCamKey = e => { if(e.key === 'Escape' && hwCam){ e.preventDefault(); if(hwCam.step === 'crop' && hwCam.stream && hwCam.edit == null) hwBackToCam(); else closeHwCamera(); } };
 const hwCamPaste = e => { const [f] = imagesFrom(e.clipboardData && e.clipboardData.files); if(f){ e.preventDefault(); hwUseFile(f); } };
+// aviso no lugar da câmera, com a câmera do próprio aparelho e a galeria como saída
+function hwCamMsg(t, extra){
+  const m = document.getElementById('hwc-msg'); if(!m) return;
+  document.getElementById('hwc-frame').classList.add('hidden'); document.getElementById('hwc-hint').textContent = '';
+  m.classList.remove('hidden');
+  m.innerHTML = `<div class="max-w-[340px]">
+    <span class="mx-auto w-14 h-14 rounded-full bg-white/10 grid place-items-center">${CAMERA_ICO.replace('w-[18px] h-[18px]', 'w-7 h-7')}</span>
+    <p class="mt-3 text-[16px] font-semibold">${t}</p>
+    ${extra ? `<p class="mt-1 text-[14px] text-white/70">${extra}</p>` : ''}
+    <div class="mt-4 flex flex-wrap justify-center gap-2">
+      <button type="button" data-hwc="native" class="rounded-xl bg-[#F4BC4E] text-[#2B2412] font-bold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Usar a câmera do aparelho</button>
+      <button type="button" data-hwc="gallery" class="rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Escolher foto</button>
+    </div></div>`;
+  hwPaintActions();
+}
 async function hwStartCamera(){
-  const msg = (t, extra) => {
-    const m = document.getElementById('hwc-msg'); if(!m) return;
-    document.getElementById('hwc-frame').classList.add('hidden'); document.getElementById('hwc-hint').textContent = '';
-    m.classList.remove('hidden');
-    m.innerHTML = `<div class="max-w-[340px]">
-      <span class="mx-auto w-14 h-14 rounded-full bg-white/10 grid place-items-center">${CAMERA_ICO.replace('w-[18px] h-[18px]', 'w-7 h-7')}</span>
-      <p class="mt-3 text-[16px] font-semibold">${t}</p>
-      ${extra ? `<p class="mt-1 text-[14px] text-white/70">${extra}</p>` : ''}
-      <div class="mt-4 flex flex-wrap justify-center gap-2">
-        <button type="button" data-hwc="native" class="rounded-xl bg-[#F4BC4E] text-[#2B2412] font-bold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Usar a câmera do aparelho</button>
-        <button type="button" data-hwc="gallery" class="rounded-xl bg-white/10 hover:bg-white/15 font-semibold text-[14.5px] px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Escolher foto</button>
-      </div></div>`;
-    hwPaintActions();
-  };
-  document.getElementById('hwc-msg').classList.add('hidden');
-  document.getElementById('hwc-frame').classList.remove('hidden');
-  hwPaintHint();
+  const msg = hwCamMsg;
+  const live = () => { document.getElementById('hwc-msg').classList.add('hidden'); document.getElementById('hwc-frame').classList.remove('hidden'); hwPaintHint(); };
+  live();
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return msg('Este navegador não abre a câmera dentro do app.', 'Dá para usar a câmera do aparelho ou escolher uma foto.');
+  // se o pedido de câmera ficar parado (sem resposta do celular), oferece as outras saídas sem esperar para sempre
+  const slow = setTimeout(() => { if(hwCam && hwCam.step === 'cam' && !hwCam.stream) msg('A câmera está demorando para abrir.', 'Se apareceu um pedido de permissão, toque em Permitir. Ou use as opções abaixo.'); }, 10000);
   try{
     const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1440}}});
+    clearTimeout(slow);
     if(!hwCam || hwCam.step !== 'cam'){ stream.getTracks().forEach(t => t.stop()); return; }   // fechou antes de a câmera abrir
     hwCam.stream = stream; hwCam.track = stream.getVideoTracks()[0];
     const v = document.getElementById('hwc-video'); v.srcObject = stream;
+    live();
     try{ await v.play(); }catch(err){}
     hwPaintTorch(); hwPaintZoom(); hwPaintActions();
   }catch(err){
+    clearTimeout(slow);
     const n = err && err.name;
     if(n === 'NotAllowedError' || n === 'SecurityError') msg('O app não tem permissão para usar a câmera.', 'Libere no cadeado ao lado do endereço do site, ou use as opções abaixo.');
     else if(n === 'NotFoundError' || n === 'OverconstrainedError') msg('Não achei nenhuma câmera neste aparelho.', 'Escolha uma foto que já está no aparelho.');
@@ -5484,17 +6142,44 @@ function hwPaintZoom(){
   el.innerHTML = opts.map(v => `<button type="button" data-hwc-zoom="${v}" class="min-w-[40px] rounded-full px-2.5 py-1 ${Math.abs(cur - v) < .05 ? 'bg-white text-[#11180F]' : 'text-white'}">${+v.toFixed(1)}x</button>`).join('');
   el.classList.remove('hidden');
 }
-function hwPaintModes(){
+// keepFrame: a troca veio de puxar a moldura ou o recorte, então o tamanho fica como a pessoa deixou
+function hwPaintModes(keepFrame){
   hwCam.el.querySelectorAll('[data-hwc-mode]').forEach(b => {
     const on = b.dataset.hwcMode === hwPref.mode;
     b.setAttribute('aria-checked', String(on));
     b.className = `rounded-full px-3.5 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'bg-white text-[#11180F]' : 'text-white/80 hover:text-white'}`;
   });
   const f = document.getElementById('hwc-frame');
-  if(f){ f.style.width = hwPref.mode === 'pagina' ? 'min(88%, 620px)' : 'min(88%, 560px)'; f.style.height = hwPref.mode === 'pagina' ? '78%' : 'min(34%, 240px)'; }
+  if(f && !keepFrame){ f.style.width = hwPref.mode === 'pagina' ? 'min(88%, 620px)' : 'min(88%, 560px)'; f.style.height = hwPref.mode === 'pagina' ? '78%' : 'min(34%, 240px)'; }
   hwPaintHint();
 }
-const hwPaintHint = () => { const h = document.getElementById('hwc-hint'); if(h) h.textContent = hwPref.mode === 'pagina' ? 'Enquadre a página toda: o Zen resolve todas as questões' : 'Enquadre uma questão só'; };
+function hwSetMode(mode, keepFrame){
+  if(hwPref.mode === mode) return;
+  hwPref.mode = mode; saveHwPref(); hwPaintModes(keepFrame);
+}
+const hwPaintHint = () => {
+  const p = hwPref.mode === 'pagina', h = document.getElementById('hwc-hint'), c = document.getElementById('hwc-crop-hint');
+  if(h) h.textContent = p ? 'Página inteira: o Zen resolve todas as questões' : 'Uma questão só. Puxe os cantos para mudar o tamanho';
+  if(c) c.textContent = p ? 'Página inteira: o Zen resolve todas as questões' : 'Arraste os cantos para deixar só a questão';
+};
+// moldura da câmera: puxar um canto muda o tamanho (ela fica sempre no meio).
+// Ocupando quase a tela toda, passa para "Página inteira"; bem pequena, volta para "Uma questão".
+document.addEventListener('pointerdown', e => {
+  const hnd = e.target.closest && e.target.closest('[data-fh]'); if(!hnd || !hwCam || hwCam.step !== 'cam') return;
+  e.preventDefault();
+  const f = document.getElementById('hwc-frame'), st = document.getElementById('hwc-live').getBoundingClientRect();
+  try{ hnd.setPointerCapture(e.pointerId); }catch(err){}
+  f.style.transition = 'none';
+  const move = ev => {
+    const w = Math.max(120, Math.min(st.width - 16, Math.abs(ev.clientX - (st.left + st.width / 2)) * 2));
+    const h = Math.max(90, Math.min(st.height - 16, Math.abs(ev.clientY - (st.top + st.height / 2)) * 2));
+    f.style.width = w + 'px'; f.style.height = h + 'px';
+    if(h >= st.height * .62 && w >= st.width * .7) hwSetMode('pagina', true);
+    else if(h <= st.height * .45) hwSetMode('um', true);
+  };
+  const up = () => { f.style.transition = ''; hnd.removeEventListener('pointermove', move); hnd.removeEventListener('pointerup', up); hnd.removeEventListener('pointercancel', up); };
+  hnd.addEventListener('pointermove', move); hnd.addEventListener('pointerup', up); hnd.addEventListener('pointercancel', up);
+});
 function hwPaintSubjects(){
   const el = document.getElementById('hwc-subj');
   el.innerHTML = HW_SUBJ.map(s => { const on = s.k === hwPref.k;
@@ -5537,7 +6222,7 @@ async function hwCamClick(e){
   const sb = e.target.closest('[data-hwc-subj]');
   if(sb){ hwPref.k = sb.dataset.hwcSubj; saveHwPref(); hwPaintSubjects(); hwPaintActions(); return; }
   const mb = e.target.closest('[data-hwc-mode]');
-  if(mb){ hwPref.mode = mb.dataset.hwcMode; saveHwPref(); hwPaintModes(); return; }
+  if(mb){ hwSetMode(mb.dataset.hwcMode); return; }
   const zb = e.target.closest('[data-hwc-zoom]');
   if(zb){ try{ await hwCam.track.applyConstraints({advanced:[{zoom:+zb.dataset.hwcZoom}]}); }catch(err){} hwPaintZoom(); return; }
   const b = e.target.closest('[data-hwc]'); if(!b) return;
@@ -5557,13 +6242,18 @@ async function hwCamClick(e){
 // no celular, abre o app de câmera do próprio aparelho
 function hwNativeCamera(){
   return new Promise(ok => {
-    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.setAttribute('capture', 'environment');
-    i.onchange = () => ok(i.files[0]); i.click();
+    const i = fileInput(x => x.setAttribute('capture', 'environment'));
+    i.onchange = () => { ok(i.files[0]); i.remove(); }; i.click();
   });
 }
-function hwShoot(){
+async function hwShoot(){
   const v = document.getElementById('hwc-video');
-  if(!hwCam.stream || !v.videoWidth) return;
+  if(!hwCam.stream) return;
+  if(!v.videoWidth){   // a imagem da câmera ainda não chegou: espera um pouco antes de desistir
+    await new Promise(r => { const t = setTimeout(r, 2000); v.addEventListener('loadeddata', () => { clearTimeout(t); r(); }, {once:true}); try{ v.play().catch(() => {}); }catch(err){} });
+    if(!hwCam || hwCam.step !== 'cam') return;
+    if(!v.videoWidth) return hwCamMsg('A câmera abriu, mas não mostrou a imagem.', 'Use a câmera do aparelho ou escolha uma foto da galeria.');
+  }
   const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
   c.getContext('2d').drawImage(v, 0, 0);
   const r = v.getBoundingClientRect(), f = document.getElementById('hwc-frame').getBoundingClientRect();
@@ -5648,6 +6338,11 @@ document.addEventListener('pointerdown', e => {
       if(h.includes('s')) hh = Math.max(min, Math.min(H - y, hh + dy));
     }
     hwCam.crop = hwClampCrop({x, y, w, h:hh}); hwPaintCrop();
+    // puxou o recorte até pegar quase a foto toda: é a página inteira (e o contrário)
+    if(h !== 'move' && hwCam.edit == null){
+      const k = hwCam.crop, r = (k.w * k.h) / (W * H);
+      if(r >= .8) hwSetMode('pagina', true); else if(r <= .35) hwSetMode('um', true);
+    }
   };
   const up = () => { box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up); };
   box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
@@ -6849,7 +7544,8 @@ function openProfilePicker(first){
     </div>
     <div class="mt-5 flex flex-wrap gap-3">${card(PROFILES.lucca)}${card(PROFILES.antonio)}</div>
     <label class="mt-4 flex items-center justify-center gap-2 text-[13.5px] text-ink-2"><input id="pick-ask" type="checkbox" class="w-4 h-4 accent-[#4A7A42]" ${gstore.get('askProfile', 'sim') === 'nao' ? 'checked' : ''}> Não perguntar de novo neste aparelho</label>
-    ${first ? '' : `<div class="mt-4 text-center"><button type="button" data-close class="${btnSoft} !py-2 !text-[14px]">Continuar como ${ME.nome}</button></div>`}`);
+    ${first ? '' : `<div class="mt-4 text-center"><button type="button" data-close class="${btnSoft} !py-2 !text-[14px]">Continuar como ${ME.nome}</button></div>`}
+    <p class="mt-4 pt-4 border-t border-line text-center text-[14px] text-ink-2">Já usa o Zen Estudos em outro aparelho? <button type="button" data-link-join class="font-semibold text-forest-500 hover:text-forest-700 underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded">Vincular este aparelho</button></p>`);
   document.getElementById('modal-box').onclick = e => {
     const b = e.target.closest('[data-pick]'); if(!b) return;
     gstore.set('askProfile', document.getElementById('pick-ask').checked ? 'nao' : 'sim');
@@ -7104,7 +7800,7 @@ document.getElementById('mobile-avatar').textContent = PROFILE_AVATAR[ME.id];
 registerVisit(); refreshStreak(); settleLastWeek();
 try{ checkMissions(); checkAchievements(); }catch(err){}
 if(SCREEN_REFRESH[currentScreen]) SCREEN_REFRESH[currentScreen]();
-setTimeout(maybeAskProfile, 400);
+setTimeout(() => linkFromUrl() || maybeAskProfile(), 400);
 setInterval(() => { try{ checkMissions(); }catch(err){} }, 15000);
 
 // fechar a janela (modal): botão X, clique fora ou Esc
