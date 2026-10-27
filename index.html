@@ -155,6 +155,8 @@
   .hw-frame .hw-c.tr { border-right-width:4px; border-top-width:4px; border-top-right-radius:18px; }
   .hw-frame .hw-c.bl { border-left-width:4px; border-bottom-width:4px; border-bottom-left-radius:18px; }
   .hw-frame .hw-c.br { border-right-width:4px; border-bottom-width:4px; border-bottom-right-radius:18px; }
+  /* botões que só aparecem ao passar o mouse: no celular (sem mouse) ficam sempre visíveis */
+  @media (hover: none) { .touch-show { opacity:1 !important; } }
   .hw-frame { pointer-events:none; }
   .hw-frame .hw-c { pointer-events:auto; touch-action:none; cursor:nwse-resize; }
   .hw-frame .hw-c.tr, .hw-frame .hw-c.bl { cursor:nesw-resize; }
@@ -277,11 +279,14 @@
               <svg class="w-[60px] h-[60px] rounded-full bg-sand ring-4 ring-paper shadow-card shrink-0"><use href="#zen-head"/></svg>
               <div class="min-w-0">
                 <h1 class="text-[22px] font-extrabold tracking-tight leading-tight">Zen</h1>
-                <p class="text-muted text-[14.5px]">Sua tutora de estudos</p>
+                <p id="chat-title" class="text-muted text-[14.5px] truncate">Sua tutora de estudos</p>
                 <p id="chat-model" class="mt-0.5 text-[12px] text-muted truncate"></p>
               </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
+              <button id="chat-list" type="button" class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[14px] font-semibold text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Conversas salvas" aria-label="Conversas salvas">
+                <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span class="hidden sm:inline">Conversas</span><span id="chat-count" class="min-w-[20px] rounded-full bg-sand px-1.5 text-[12px] tabular-nums empty:hidden"></span>
+              </button>
               <button id="chat-new" type="button" class="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[14px] font-semibold text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Começar outra conversa">
                 <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span class="hidden sm:inline">Nova conversa</span>
               </button>
@@ -975,7 +980,7 @@ const PROFILES = {
   antonio: {id:'antonio', nome:'Antonio', prefix:'zenTeste_antonio_', amigo:'lucca'}
 };
 const GLS = 'zenTeste_';                         // chaves globais: apiKey, settings, profile
-const GLOBAL_KEYS = ['apiKey', 'settings', 'profile', 'aparelho'];
+const GLOBAL_KEYS = ['apiKey', 'settings', 'profile', 'aparelho', 'askProfile'];
 const USER = PROFILES[(() => { try{ const v = localStorage.getItem(GLS + 'profile'); return v && v.startsWith('"') ? JSON.parse(v) : v; }catch(err){ return null; } })()] || null;
 const ME = USER || PROFILES.lucca;                // até escolher, mostra como Lucca por trás da janela de escolha
 const FRIEND = PROFILES[ME.amigo];
@@ -1006,7 +1011,7 @@ const profileKeys = () => keysOf(ME);
 const SYNC = {on:false, seen:{}, parts:{}, done:new Set(), devs:{}, chunks:{}, repush:new Set(), applied:0};
 // aparelho que acabou de ser vinculado: até os dados chegarem, o que ele cria sozinho (valores vazios) não vale mais que os de lá
 SYNC.fresh = (() => { try{ return Date.now() - (+sessionStorage.getItem(GLS + 'syncFresh') || 0) < 90000; }catch(err){ return false; } })();
-const SYNC_SKIP = new Set(['__mt', '__pend', 'vinculo', 'rankAmigo', 'askProfile', 'ultimoBackup']);
+const SYNC_SKIP = new Set(['__mt', '__pend', 'vinculo', 'rankAmigo', 'askProfile', 'ultimoBackup', 'foco']);   // foco: o cronômetro é de cada aparelho
 const syncSkip = k => SYNC_SKIP.has(k) || GLOBAL_KEYS.includes(k);
 function syncMeta(prefix = LS){ try{ return JSON.parse(localStorage.getItem(prefix + '__mt')) || {}; }catch(err){ return {}; } }
 function syncMetaSave(m, prefix = LS){ try{ localStorage.setItem(prefix + '__mt', JSON.stringify(m)); }catch(err){} }
@@ -1029,7 +1034,7 @@ function syncDistinct(x, y){
   if(!x || !y || typeof x !== 'object' || typeof y !== 'object') return false;
   const born = ['created', 'criado', 'createdAt', 'at', 'ts'].filter(f => f in x && f in y);
   if(born.length) return born.some(f => x[f] !== y[f]);
-  return ['q', 'front', 'frente', 'pergunta', 'title', 'titulo', 'nome'].some(f => f in x && f in y && x[f] !== y[f]);
+  return ['q', 'f', 'front', 'frente', 'pergunta', 'title', 'titulo', 'nome'].some(f => f in x && f in y && x[f] !== y[f]);   // f = frente do flashcard
 }
 // quando a mesma parte mudou nos dois aparelhos: junta listas pelo id, contadores pelo maior, o resto fica o mais novo
 function syncMerge(a, b, aNewer){
@@ -1054,6 +1059,14 @@ function syncMerge(a, b, aNewer){
       return out;
     }
     if(a.every(x => typeof x === 'string') && b.every(x => typeof x === 'string')) return [...new Set([...newer, ...older])];
+    // listas sem id (resumos, provas do calendário, simulados feitos): junta pela data de criação, ou pelo conteúdo igual
+    const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
+    if(a.length && b.length && a.every(isObj) && b.every(isObj)){
+      const key = ['at', 'created', 'criado', 'ts'].find(f => [...a, ...b].every(x => x[f] != null));
+      const sig = key ? x => String(x[key]) : x => JSON.stringify(x);
+      const seen = new Set(newer.map(sig));
+      return [...newer, ...older.filter(x => !seen.has(sig(x)))];
+    }
     return newer;
   }
   if(a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)){
@@ -1093,7 +1106,17 @@ function syncResolve(k, r, write, prefix = LS){
   Object.entries(pend).forEach(([k, r]) => { if(!syncSkip(k) && r && typeof r.ts === 'number' && syncResolve(k, r, true)) SYNC.applied++; });
   if(SYNC.applied && SYNC.fresh){ SYNC.fresh = false; SYNC.firstData = true; try{ sessionStorage.removeItem(GLS + 'syncFresh'); }catch(err){} }   // os dados chegaram
 })();
-const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+// gravações "com espera" (anotações, quadro...) ficam registradas para serem feitas na hora quando o app vai para o segundo plano:
+// no celular os relógios param em segundo plano e o app pode ser fechado antes de a espera acabar
+const PENDING_SAVES = new Set();
+const debounce = (fn, ms) => {
+  let t, args;
+  const run = () => { clearTimeout(t); PENDING_SAVES.delete(run); fn(...args); };
+  return (...a) => { args = a; clearTimeout(t); t = setTimeout(run, ms); PENDING_SAVES.add(run); };
+};
+const flushSaves = () => [...PENDING_SAVES].forEach(run => { try{ run(); }catch(err){} });
+addEventListener('pagehide', flushSaves);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') flushSaves(); });
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 // botões e números usados por várias telas
 const fmt1 = n => n.toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
@@ -1204,13 +1227,15 @@ async function geminiOnce(model, body, key){
   } finally { clearTimeout(timer); }
 }
 // Tenta o principal; se der cota, modelo indisponível, erro do servidor ou rede, tenta a reserva.
-async function askGemini({contents, system, json, temperature}){
+// prefer:'backup' começa pela reserva (para pedidos pequenos, como o nome de uma conversa, não gastarem a cota do principal)
+async function askGemini({contents, system, json, temperature, prefer}){
   const key = getKey();
   if(!key) throw new ZenError('semchave');
   const body = {contents, generationConfig:{temperature:temperature == null ? 0.7 : temperature}};
   if(system) body.systemInstruction = {parts:[{text:system}]};
   if(json) body.generationConfig.responseMimeType = 'application/json';
-  const models = [SETTINGS.main, SETTINGS.backup].filter((m, i, a) => m && a.indexOf(m) === i);
+  const order = prefer === 'backup' ? [SETTINGS.backup, SETTINGS.main] : [SETTINGS.main, SETTINGS.backup];
+  const models = order.filter((m, i, a) => m && a.indexOf(m) === i);
   let last;
   for(const model of models){
     try{ return {text:await geminiOnce(model, body, key), model}; }
@@ -1251,7 +1276,9 @@ function parseLooseJSON(raw){
 }
 // "\frac" e "\beta" sem escapar viram caracteres de controle no JSON: devolve a barra para o LaTeX
 function fixLatex(v){
-  if(typeof v === 'string') return v.replace(/\f/g, '\\f').replace(/\x08/g, '\\b').replace(/\t(?=(?:imes|heta|ext|an|au|riangle|frac)\b)/g, '\\t');
+  // \r e \n só quando o que vem depois é claramente um comando do LaTeX (\right, \rho, \neq, \nabla...), para não estragar quebras de linha de verdade
+  if(typeof v === 'string') return v.replace(/\f/g, '\\f').replace(/\x08/g, '\\b').replace(/\t(?=(?:imes|heta|ext|an|au|riangle|frac)\b)/g, '\\t')
+    .replace(/\r(?=ight|ho\b|angle|ceil|floor)/g, '\\r').replace(/\n(?=abla|eq\b|eq[^a-zà-ú]|u\b|ot\b|exists|ewline)/g, '\\n');
   if(Array.isArray(v)) return v.map(fixLatex);
   if(v && typeof v === 'object'){ Object.keys(v).forEach(k => v[k] = fixLatex(v[k])); return v; }
   return v;
@@ -1775,6 +1802,8 @@ document.addEventListener('click', e => { if(e.target.closest('[data-open-settin
 // =====================================================================
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const keyDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+// fica aqui em cima: a tela de Simulados usa já na abertura do app (mais abaixo, o app parava de carregar)
+const fmtDate = t => new Date(t).toLocaleDateString('pt-BR');
 const daysBetween = (a, b) => Math.round((keyDate(b) - keyDate(a)) / 864e5);
 const shiftKey = (k, n) => { const d = keyDate(k); d.setDate(d.getDate() + n); return dayKey(d); };
 const weekStartKey = (d = new Date()) => { const x = new Date(d); x.setDate(x.getDate() - x.getDay()); return dayKey(x); };   // semana começa no domingo
@@ -1876,7 +1905,7 @@ function goalsHTML(date){
         ${g.done ? '<svg class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' : ''}
       </button>
       <span class="flex-1 text-[15px] ${g.done ? 'text-muted line-through' : 'text-ink-2'}">${esc(g.text)}</span>
-      <button type="button" data-goal-del="${date}|${g.id}" class="opacity-0 group-hover:opacity-100 focus:opacity-100 w-7 h-7 rounded-lg grid place-items-center text-muted hover:text-ink hover:bg-sand" aria-label="Apagar a meta ${esc(g.text)}"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button type="button" data-goal-del="${date}|${g.id}" class="opacity-0 group-hover:opacity-100 touch-show focus:opacity-100 w-7 h-7 rounded-lg grid place-items-center text-muted hover:text-ink hover:bg-sand" aria-label="Apagar a meta ${esc(g.text)}"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </li>`).join('') || '<li class="text-[14px] text-muted">Nenhuma meta para este dia. Escreva uma abaixo.</li>';
 }
 // cliques nas metas, em qualquer tela
@@ -2426,18 +2455,23 @@ function openTool(id){
     if(blank.length && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = `Preencha ${blank.map(f => `"${f[1]}"`).join(' e ')} ou mande uma foto.`; return; }
     const raw = {...v}; blank.forEach(([key]) => { v[key] = 'o conteúdo da foto anexada'; });
     b.disabled = true; b.innerHTML = `${spinner} O Zen está preparando...`; st.textContent = '';
+    const form = document.getElementById('tf-form');
     try{
-      STATS.toolUses++;
       let text, extra = [];
       if(T.json){
         const d = await askGeminiJSON(T.prompt(v), zenSystemPrompt(), att.images);
         text = d.plano || ''; const metas = (d.metas || []).filter(m => /^\d{4}-\d{2}-\d{2}$/.test(m.data) && m.texto);
+        let placed = false;     // um toque só: tocar de novo não duplica a prova e as metas
         extra = [{label:'Pôr a prova e as metas no calendário', fn:() => {
+          if(placed) return toast('A prova e as metas já estão no calendário.');
+          placed = true;
           if(v.data) EVENTS.push({d:v.data, t:raw.prova || 'Prova', tipo:'prova'});
           metas.forEach(m => addGoal(m.data, m.texto));
           renderCal(); scheduleChecks(); toast(`Prova e ${metas.length} metas no calendário.`);
         }}];
       } else text = (await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[...imgParts(att.images), {text:T.prompt(v) + imgHint(att.images)}]}]})).text;
+      if(!form.isConnected) return;     // fechou a janela enquanto o Zen preparava: não abre nada por cima do que estiver aberto agora
+      STATS.toolUses++;      // só conta (para a missão) quando o Zen respondeu de verdade
       addXP(XP.ferramenta, 'ferramenta', v.materia); if(T.done) T.done(v); saveStats();
       closeModal();
       showZenResult({title:`${T.title}${raw.tema ? `: ${raw.tema}` : raw.prova ? `: ${raw.prova}` : att.images.length ? ' da foto' : ''}`, text, subject:v.materia, icon:'🧰', extra,
@@ -2717,7 +2751,8 @@ const dayWord = n => n === 1 ? '1 dia' : `${n} dias`;
 function buildQueue(all){
   const now = Date.now();
   fcs.queue = CARDS.filter(c => all || (c.due || 0) <= now).sort((a, b) => (a.due || 0) - (b.due || 0)).map(c => c.id);
-  Object.assign(fcs, {done:0, total:fcs.queue.length, revealed:false, counts:[0, 0, 0, 0]});
+  // só vale como "Revisão do dia" a fila dos cartões que estavam para revisar (não o "recomeçar tudo" nem uma fila vazia)
+  Object.assign(fcs, {done:0, total:fcs.queue.length, revealed:false, counts:[0, 0, 0, 0], daily:!all && fcs.queue.length > 0});
 }
 const currentCard = () => CARDS.find(c => c.id === fcs.queue[0]);
 // Bom sobe 1 caixa, Fácil sobe 2 (na última caixa, Fácil dobra o prazo)
@@ -2771,14 +2806,14 @@ function rateFC(i){
     fcs.queue.push(fcs.queue.shift());
   } else {
     const nd = nextDays(c, i);
-    c.box = nd.b; c.due = now + nd.d * 864e5;
+    c.box = nd.b; c.due = keyDate(shiftKey(dayKey(), nd.d)).getTime();     // volta no começo daquele dia (não na mesma hora)
     fcs.queue.shift(); fcs.done++;
   }
   fcs.counts[i]++; fcs.revealed = false;
   const t = dayKey();
   STATS.flashcardsReviewed++; STATS.fcLog[t] = (STATS.fcLog[t] || 0) + 1;
   addXP(XP.flashcardRevisado, 'flashcard', subjectOf(c.k)); logMinutes(0.5, c.k);
-  if(!fcs.queue.length && fcs.total) finishDailyReview();
+  if(!fcs.queue.length && fcs.total && fcs.daily) finishDailyReview();
   saveCards(); renderFC(true);
   document.getElementById('fc-reveal').focus();
 }
@@ -2852,8 +2887,10 @@ function openCardGenerator(){
     if(!tema && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o tema ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} Gerando...`; st.className = 'text-[14px] min-h-[1.4em] text-ink-2'; st.textContent = '';
     try{
+      const form = document.getElementById('cg-form');
       const n = await generateCards(document.getElementById('cg-subj').value, tema || 'o conteúdo das fotos anexadas', '', +document.getElementById('cg-n').value, att.images);
-      closeModal(); toast(`${n} cartões criados. Bora revisar!`);
+      if(form.isConnected) closeModal();     // se já fechou, não fecha a janela que estiver aberta agora
+      toast(`${n} cartões criados. Bora revisar!`);
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar cartões'; }
   });
 }
@@ -3051,8 +3088,11 @@ function finishSim(){
   sim.finished = true; sim.sel = null; saveSim(); renderSim(); document.getElementById('main').scrollTop = 0;
 }
 // monta o simulado a partir de questões do banco (o histórico de cada uma é atualizado)
-function startSimFromBank(list, titulo){
+// força = a pessoa já confirmou que larga o simulado em andamento
+function startSimFromBank(list, titulo, forca){
+  if(!forca && hasSim() && !sim.finished && sim.answers.some(a => a != null) && !confirm('Largar o simulado em andamento e começar este?')) return false;
   resetSim({titulo, tempo:list.length * 180, questoes:list.map(q => ({id:q.id, k:q.k, materia:(subjectOf(q.k) || {}).nome, enunciado:q.q, alternativas:q.alts, correta:q.certa, explicacao:q.exp, tabela:q.tabela}))});
+  return true;
 }
 function resetSim(data){
   Object.assign(sim, {data, i:0, answers:[], sel:null, left:data.tempo || data.questoes.length * 180, finished:false});
@@ -3087,7 +3127,7 @@ document.getElementById('sim-result').addEventListener('click', e => {
   const st = e.target.closest('[data-simstart]');
   if(st){
     if(st.dataset.simstart === 'zen') return openSimGenerator();
-    return startSimFromBank(QUESTIONS.slice().sort((a, b) => (lastTry(a) ? (lastTry(a).ok ? 2 : 0) : 1) - (lastTry(b) ? (lastTry(b).ok ? 2 : 0) : 1) || Math.random() - .5).slice(0, 15), 'Simulado do seu banco');
+    return startSimFromBank(QUESTIONS.slice().sort((a, b) => (lastTry(a) ? (lastTry(a).ok ? 2 : 0) : 1) - (lastTry(b) ? (lastTry(b).ok ? 2 : 0) : 1) || Math.random() - .5).slice(0, 15), 'Simulado do seu banco', true);
   }
   const b = e.target.closest('[data-res]'); if(!b) return;
   if(b.dataset.res === 'redo') resetSim(sim.data);
@@ -3131,10 +3171,10 @@ function openSimGenerator(){
     const b = document.getElementById('sg-go'), st = document.getElementById('sg-status');
     b.disabled = true; b.innerHTML = `${spinner} Montando...`; st.className = 'text-[14px] min-h-[1.4em] text-ink-2'; st.textContent = '';
     try{
+      const form = document.getElementById('sg-form');
       const qs = await generateQuestions({subject:mat ? SUBJECTS.find(s => s.nome === mat) : null, tema:tema || (att.images.length ? 'o conteúdo das fotos anexadas' : ''), n, dif, fonte:estilo, images:att.images});
-      closeModal();
-      startSimFromBank(qs, `Simulado ${estilo}${mat ? ` de ${mat}` : ''}`);
-      toast(`Simulado com ${qs.length} questões pronto. Boa prova!`);
+      if(form.isConnected) closeModal();     // se já fechou, não fecha outra janela aberta agora
+      if(startSimFromBank(qs, `Simulado ${estilo}${mat ? ` de ${mat}` : ''}`)) toast(`Simulado com ${qs.length} questões pronto. Boa prova!`);
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Criar simulado'; }
   });
 }
@@ -3347,8 +3387,11 @@ function openQuestionGenerator(after){
     if(!qVal('qg-tema').trim() && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o assunto ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} O Zen está escrevendo...`; st.textContent = '';
     try{
+      const form = b.closest('form');
       const qs = await generateQuestions({subject:subjectOf(qVal('qg-mat')), tema:qVal('qg-tema').trim() || 'o conteúdo das fotos anexadas', n:+qVal('qg-n'), dif:qVal('qg-dif'), fonte:qVal('qg-fonte'), images:att.images});
-      closeModal(); toast(`${qs.length} questões novas no banco.`);
+      toast(`${qs.length} questões novas no banco.`);
+      if(!form.isConnected) return;     // fechou a janela enquanto o Zen escrevia: as questões ficam no banco, sem mexer na tela atual
+      closeModal();
       if(after) after(qs); else { ['q-search', 'q-topic', 'q-diff', 'q-status'].forEach(id => document.getElementById(id).value = ''); renderQuestions(); document.getElementById('q-subject').value = qs[0].k; renderQuestions(); }
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar questões'; }
   });
@@ -3358,8 +3401,7 @@ document.getElementById('q-gen').addEventListener('click', () => openQuestionGen
 document.getElementById('q-sim').addEventListener('click', () => {
   const list = filteredQuestions();
   if(!list.length) return toast('Não há questões com esses filtros. Gere algumas com o Zen primeiro.');
-  startSimFromBank(list.slice().sort(() => Math.random() - .5).slice(0, 15), 'Simulado do seu banco');
-  location.hash = 'simulados';
+  if(startSimFromBank(list.slice().sort(() => Math.random() - .5).slice(0, 15), 'Simulado do seu banco')) location.hash = 'simulados';
 });
 document.getElementById('q-search').addEventListener('input', renderQuestions);
 ['q-subject', 'q-topic', 'q-diff', 'q-status'].forEach(id => document.getElementById(id).addEventListener('change', renderQuestions));
@@ -3534,7 +3576,7 @@ function renderVideos(){
       <button type="button" data-play="${i}" class="group relative block w-full aspect-video rounded-xl overflow-hidden bg-[#2D412C] shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream" aria-label="Assistir ${esc(v.tema)}">
         <img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300 ${seen ? 'opacity-80' : ''}">
         <span class="absolute inset-0 grid place-items-center bg-black/0 group-hover:bg-black/20 transition-colors">
-          <span class="w-12 h-12 rounded-full bg-white/90 grid place-items-center text-forest-700 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"><svg class="w-5 h-5 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></span>
+          <span class="w-12 h-12 rounded-full bg-white/90 grid place-items-center text-forest-700 opacity-0 group-hover:opacity-100 touch-show group-focus-visible:opacity-100 transition-opacity"><svg class="w-5 h-5 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12-7.5z"/></svg></span>
         </span>
         ${seen ? '<span class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-md bg-forest-700/90 text-white text-[12px] font-semibold px-2 py-0.5"><svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Assistido</span>' : ''}
         ${seen ? '<span class="absolute left-0 right-0 bottom-0 h-1.5 bg-[#7FB069]"></span>' : ''}
@@ -3630,7 +3672,6 @@ const ed = document.getElementById('nt-editor'), ntTitle = document.getElementBy
 try{ document.execCommand('defaultParagraphSeparator', false, 'p'); }catch(err){}
 
 const ntNote = () => NOTES.find(n => n.id === nt.page);
-const fmtDate = t => new Date(t).toLocaleDateString('pt-BR');
 function edited(t){
   const d = Math.floor((Date.now() - t) / DAY), min = Math.floor((Date.now() - t) / 6e4);
   return min < 1 ? 'Editado agora' : min < 60 ? `Editado há ${min} min` : d < 1 ? 'Editado hoje' : d === 1 ? 'Editado ontem' : `Editado há ${d} dias`;
@@ -3980,6 +4021,8 @@ function tryInlineMath(){
   const r = caretRange(); if(!r || !r.collapsed || r.startContainer.nodeType !== 3) return false;
   const node = r.startContainer, m = node.textContent.slice(0, r.startOffset).match(/\$([^$\n]+)\$$/);
   if(!m || /^\s|\s$/.test(m[1]) || node.parentElement.closest('pre, code, .nt-math')) return false;
+  // "R$10 ... R$": o cifrão grudado numa letra ou número é dinheiro, não começo de fórmula
+  if(/[A-Za-z0-9]/.test(node.textContent.charAt(r.startOffset - m[0].length - 1))) return false;
   const range = document.createRange(); range.setStart(node, r.startOffset - m[0].length); range.setEnd(node, r.startOffset); range.deleteContents();
   const span = makeMath(m[1], false); range.insertNode(span);
   const sp = document.createTextNode(' '); span.after(sp);
@@ -4041,9 +4084,9 @@ function mdToNoteHTML(text){
     const parts = n.textContent.split(/(\$\$[\s\S]+?\$\$|\$(?=\S)[^$\n]*?\S\$)/);
     if(parts.length < 2) return;
     const frag = document.createDocumentFragment();
-    parts.forEach(p => {
+    parts.forEach((p, i) => {
       if(/^\$\$[\s\S]+\$\$$/.test(p)) frag.appendChild(makeMath(p.slice(2, -2).trim(), true));
-      else if(/^\$[^$]+\$$/.test(p)) frag.appendChild(makeMath(p.slice(1, -1), false));
+      else if(/^\$[^$]+\$$/.test(p) && !/[A-Za-z0-9]$/.test(parts[i - 1] || '')) frag.appendChild(makeMath(p.slice(1, -1), false));   // "R$10 ou R$20" é dinheiro
       else if(p) frag.appendChild(document.createTextNode(p));
     });
     n.replaceWith(frag);
@@ -4076,8 +4119,10 @@ function openZenWriter(line){
     const want = document.getElementById('zw-want').value.trim() || (att.images.length ? 'Passe a limpo o conteúdo da foto, organizado, com títulos e tópicos.' : '');
     if(!want){ document.getElementById('zw-want').focus(); return; }
     b.disabled = true; b.innerHTML = `${spinner} Escrevendo...`;
+    const form = b.closest('form');
     try{
       const r = await askGemini({system:zenSystemPrompt(), contents:[{role:'user', parts:[...imgParts(att.images), {text:`Você está escrevendo dentro da anotação "${n.title || 'Sem título'}".\nConteúdo atual da anotação, para contexto:\n${noteToText()}\n\nPedido do ${ME.nome}: ${want}${imgHint(att.images)}\n\nResponda SOMENTE com o conteúdo a ser inserido, em markdown (pode usar ## títulos, tabelas, listas, "- [ ]" para tarefas e fórmulas $...$ ou $$...$$). Não repita o título da anotação.`}]}]});
+      if(!form.isConnected || ntNote() !== n) return;     // cancelou ou abriu outra anotação: o texto não entra em lugar errado
       const box = document.createElement('div'); box.innerHTML = mdToNoteHTML(r.text);
       const top = line && line.closest('#nt-editor') ? (line.closest('#nt-editor > *') || line) : null;
       const nodes = [...box.childNodes];
@@ -4175,7 +4220,7 @@ function renderMap(){
           <button type="button" data-expand="${k}" ${mm.busy === k ? 'disabled' : ''} class="rounded-full px-2.5 py-1 text-[12.5px] font-semibold text-muted hover:text-forest-700 hover:bg-forest-100 disabled:opacity-60" title="O Zen sugere mais subtópicos">${mm.busy === k ? 'Pensando...' : '+ Zen'}</button>
         </div>
         ${open ? `<ul class="mt-3 space-y-1.5 pl-3">${r.itens.map((it, j) => `<li class="group flex gap-2.5 text-[15px] text-ink-2"><span class="mt-[9px] w-1.5 h-1.5 rounded-full shrink-0" style="background:${c.line}"></span><span class="zen-md !text-[15px] min-w-0 flex-1">${md(it)}</span>
-            <button type="button" data-item-del="${k}:${j}" class="opacity-0 group-hover:opacity-100 focus:opacity-100 w-6 h-6 rounded grid place-items-center text-muted hover:text-ink" aria-label="Tirar ${esc(it)}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></li>`).join('')}</ul>
+            <button type="button" data-item-del="${k}:${j}" class="opacity-0 group-hover:opacity-100 touch-show focus:opacity-100 w-6 h-6 rounded grid place-items-center text-muted hover:text-ink" aria-label="Tirar ${esc(it)}"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></li>`).join('')}</ul>
           ${mm.adding === k
             ? `<form data-addform="${k}" class="mt-2 pl-3"><input class="w-full max-w-[260px] rounded-lg border border-line bg-cream px-3 py-1.5 text-[14px] focus:outline-none focus:ring-2 focus:ring-forest-400/50" placeholder="Novo tópico e Enter" aria-label="Novo tópico em ${esc(r.t)}"></form>`
             : `<button type="button" data-add="${k}" class="mt-2 ml-3 rounded text-[13.5px] font-semibold text-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">+ Adicionar tópico</button>`}` : ''}
@@ -4231,11 +4276,13 @@ function openMapCreator(){
     const b = document.getElementById('mc-go'), st = document.getElementById('mc-status'), k = document.getElementById('mc-subj').value, rs = ramos();
     if(!tema() && !att.images.length){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = 'Escreva o tema central ou mande uma foto.'; return; }
     b.disabled = true; b.innerHTML = `${spinner} Montando...`; st.textContent = '';
+    const form = b.closest('form');
     try{
       const d = await askGeminiJSON(`Monte um mapa mental de estudo sobre "${tema() || 'o conteúdo das fotos anexadas'}" (matéria "${subjectOf(k).nome}"). ${rs.length ? `Use exatamente estes ramos principais: ${rs.join('; ')}.` : 'Use de 4 a 6 ramos principais'}, cada um com 2 a 4 subtópicos curtíssimos (no máximo 5 palavras cada). Fórmulas, se houver, em LaTeX entre $...$. Formato: {"central":"...","branches":[{"title":"...","children":["...","..."]}]}`, undefined, att.images);
       const ramosZen = (d.branches || []).filter(x => x && x.title).map(x => ({t:x.title, itens:x.children || []}));
       if(!ramosZen.length) throw new ZenError('json');
-      const nome = tema() || String(d.central || 'Mapa da foto').slice(0, 60); closeModal(); addMap(nome, k, d.central || nome, ramosZen); toast('Mapa pronto! Toque num ramo para recolher ou peça mais subtópicos ao Zen.');
+      if(!form.isConnected) return;     // cancelou enquanto o Zen montava
+      const nome =tema() || String(d.central || 'Mapa da foto').slice(0, 60); closeModal(); addMap(nome, k, d.central || nome, ramosZen); toast('Mapa pronto! Toque num ramo para recolher ou peça mais subtópicos ao Zen.');
     }catch(err){ st.className = 'text-[14px] min-h-[1.4em] text-[#B4472F]'; st.textContent = zenErrorText(err); b.disabled = false; b.textContent = 'Gerar com o Zen'; }
   });
 }
@@ -4410,6 +4457,7 @@ function boardSummary(){
 async function zenDraw(pedido){
   const btn = document.getElementById('wb-ask-go'), out = document.getElementById('wb-zen-out');
   btn.disabled = true; btn.innerHTML = `${spinner} O Zen está desenhando...`;
+  const boardId = wbBoard.id;
   try{
     const d = await askGeminiJSON(`Você está desenhando junto com o ${ME.nome} num quadro branco de estudo de 1600 x 1000 (x cresce para a direita, y para baixo). A imagem anexada é o quadro agora.
 ${boardSummary()}
@@ -4424,6 +4472,8 @@ Itens possíveis:
 Cores: preto, verde, laranja, vermelho, azul, roxo.
 Formato: {"explicacao":"o que você fez e a explicação, curta, em markdown (aqui pode usar LaTeX $...$)","desenhos":[...]}`, zenSystemPrompt(), [{mime:'image/png', data:boardPNG().split(',')[1]}]);
     const items = zenBoardItems(d.desenhos || d.itens);
+    // trocou de quadro enquanto o Zen desenhava: o desenho não vai para o quadro errado
+    if(wbBoard.id !== boardId){ toast('O desenho do Zen não entrou porque você trocou de quadro. Volte e peça de novo.'); return; }
     if(items.length) wb.do({add:items, del:[]});
     STATS.toolUses++; addXP(XP.ferramenta, 'ferramenta');
     const text = String(d.explicacao || (items.length ? 'Pronto, desenhei no quadro.' : 'Não consegui desenhar isso. Tente pedir de outro jeito.'));
@@ -4445,7 +4495,7 @@ Formato: {"explicacao":"o que você fez e a explicação, curta, em markdown (aq
       if(a.wbz === 'close') out.classList.add('hidden');
     };
   }catch(err){ toast(zenErrorText(err)); }
-  btn.disabled = false; btn.textContent = 'Zen, faz no quadro';
+  finally{ btn.disabled = false; btn.textContent = 'Zen, faz no quadro'; }
 }
 document.getElementById('wb-ask').addEventListener('submit', e => {
   e.preventDefault();
@@ -4556,6 +4606,7 @@ function onNetMessage(topic, payload){
     let info = null; try{ info = s ? JSON.parse(s) : null; }catch(err){}
     const before = liveFriends[dev];
     if(!info || !info.me){ delete liveFriends[dev]; renderLive(); return; }
+    if(before && (info.ts || 0) < (before.ts || 0)) return;     // aviso velho de outro servidor chegou depois: fica o mais novo
     liveFriends[dev] = Object.assign(info, {seen:Date.now()});
     if(info.me.pid === FRIEND.id && info.rank) mergeFriendRank(info.rank);
     if(info.board && (!before || !before.board || before.board.share !== info.board.share) && Date.now() - info.ts < 180000 && !(live && live.share === info.board.share))
@@ -5541,8 +5592,33 @@ function sendDuelInvite(settings, qs){
   document.getElementById('du-cancel').addEventListener('click', () => { duelSend('quit'); endDuel(); });
   duelTimer(() => { if(duel && duel.phase === 'invite'){ toast(`O ${f.nome} não respondeu ao desafio. Ele está com o app aberto?`); endDuel(); } }, 45000);
 }
-function showDuelInvite(d){
+function showDuelInvite(d, fromBar){
   const s = d.settings || {}, nome = String(d.me.nome || 'Amigo').slice(0, 30), av = String(d.me.avatar || '🙂').slice(0, 4);
+  // se a pessoa está no meio de algo (uma janela, o dever, a câmera), o convite chega numa faixa em cima, sem apagar o que ela fazia
+  const busy = !document.getElementById('modal').classList.contains('hidden') || document.getElementById('hw-sheet') || document.getElementById('hw-cam') || document.querySelector('[aria-label="Imagem ampliada"]');
+  if(busy && !fromBar){
+    document.getElementById('duel-bar')?.remove();
+    const bar = document.createElement('div');
+    bar.id = 'duel-bar'; bar.setAttribute('role', 'alert');
+    bar.className = 'fixed z-[75] left-1/2 -translate-x-1/2 top-[max(12px,env(safe-area-inset-top))] w-[calc(100%-32px)] max-w-[460px] flex flex-wrap items-center gap-2 rounded-2xl bg-forest-900 text-[#F3F1E6] shadow-window px-4 py-2.5';
+    bar.innerHTML = `<span class="flex-1 min-w-[150px] text-[14.5px]">${esc(av)} <b>${esc(nome)}</b> te desafiou para um duelo!</span>
+      <button type="button" data-db="ver" class="rounded-xl bg-amber text-ink font-semibold text-[14px] px-3.5 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Ver</button>
+      <button type="button" data-db="nao" class="rounded-xl bg-white/10 font-semibold text-[14px] px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">Agora não</button>`;
+    const gone = setTimeout(() => { if(bar.isConnected){ bar.remove(); toast(`O desafio do ${nome} expirou.`); } }, 40000);
+    bar.addEventListener('click', e => {
+      const b = e.target.closest('[data-db]'); if(!b) return;
+      clearTimeout(gone); bar.remove();
+      if(b.dataset.db === 'nao') duelSend('decline', {did:d.did, reason:''}, d.me.pid);
+      else {
+        if(document.getElementById('hw-cam')) closeHwCamera();
+        if(document.getElementById('hw-sheet')) closeHwSheet();
+        document.querySelectorAll('[aria-label="Imagem ampliada"]').forEach(v => v.remove());
+        showDuelInvite(d, true);
+      }
+    });
+    document.body.appendChild(bar);
+    return;
+  }
   closeModal();
   openModal(`<div class="text-center">
       <p class="text-[44px] leading-none" aria-hidden="true">${esc(av)} <span class="text-[28px] align-middle">⚔️</span> ${PROFILE_AVATAR[ME.id]}</p>
@@ -5574,7 +5650,7 @@ function duelCountdown(then){
   duel.phase = 'countdown';
   let n = 3;
   const step = () => {
-    if(!duel) return;
+    if(!duel || duel.phase !== 'countdown') return;     // a questão já chegou: a contagem não pinta por cima dela
     renderDuelBody(`<p class="py-16 text-center text-[64px] font-extrabold tracking-tight text-forest-700" aria-live="assertive">${n > 0 ? n : 'Valendo!'}</p>`);
     if(n-- > 0) duelTimer(step, 850); else duelTimer(then, 650);
   };
@@ -5977,7 +6053,8 @@ function openHwStart(){
       return openHwSolution(hwNewEntry({imgs}));
     }
     const b = e.target.closest('[data-hw-open]'); if(!b) return;
-    const w = b.dataset.hwOpen, batch = hwTray.splice(0).map(t => t.img);
+    // cada foto leva junto a imagem original e o recorte, para poder voltar para cá se a câmera for fechada
+    const w = b.dataset.hwOpen, batch = hwTray.splice(0).map(t => Object.assign(t.img, {_canvas:t.canvas, _crop:t.crop}));
     closeModal();
     if(w === 'cam') openHwCamera(null, {batch});
     if(w === 'type') openHwTyped();
@@ -6066,8 +6143,15 @@ async function openHwCamera(file, opts = {}){
   }
   else if(file) hwUseFile(file); else hwStartCamera();
 }
-function closeHwCamera(){
+// solved: a câmera fechou porque as fotos foram para o Zen; senão as fotos guardadas voltam para a janela do Dever de casa
+function closeHwCamera(solved){
   if(!hwCam) return;
+  if(!solved && hwCam.batch.length){
+    hwCam.batch.forEach(img => { if(img._canvas && hwTray.length < HW_MAX) hwTray.push({canvas:img._canvas, crop:img._crop, img}); });
+    hwCam.batch = [];
+    // volta para a janela do Dever de casa (a não ser que outra janela tenha aberto, como "Digitar a questão")
+    setTimeout(() => { if(document.getElementById('modal').classList.contains('hidden')){ openHwStart(); toast('As fotos que você já tinha continuam aqui.'); } }, 0);
+  }
   hwStopStream();
   document.removeEventListener('keydown', hwCamKey);
   document.removeEventListener('paste', hwCamPaste);
@@ -6100,10 +6184,12 @@ async function hwStartCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return msg('Este navegador não abre a câmera dentro do app.', 'Dá para usar a câmera do aparelho ou escolher uma foto.');
   // se o pedido de câmera ficar parado (sem resposta do celular), oferece as outras saídas sem esperar para sempre
   const slow = setTimeout(() => { if(hwCam && hwCam.step === 'cam' && !hwCam.stream) msg('A câmera está demorando para abrir.', 'Se apareceu um pedido de permissão, toque em Permitir. Ou use as opções abaixo.'); }, 10000);
+  const cam = hwCam, req = cam.camReq = (cam.camReq || 0) + 1;     // só vale o último pedido de câmera desta janela
   try{
     const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:2560}, height:{ideal:1440}}});
     clearTimeout(slow);
-    if(!hwCam || hwCam.step !== 'cam'){ stream.getTracks().forEach(t => t.stop()); return; }   // fechou antes de a câmera abrir
+    // fechou, pediu de novo ou já tem outra câmera aberta: desliga esta, senão a luz da câmera fica acesa
+    if(!hwCam || hwCam !== cam || cam.camReq !== req || cam.step !== 'cam' || cam.stream){ stream.getTracks().forEach(t => t.stop()); return; }
     hwCam.stream = stream; hwCam.track = stream.getVideoTracks()[0];
     const v = document.getElementById('hwc-video'); v.srcObject = stream;
     live();
@@ -6236,7 +6322,7 @@ async function hwCamClick(e){
   if(a === 'retake'){ if(hwCam.edit != null) closeHwCamera(); else hwBackToCam(); }
   if(a === 'rotate') hwRotate();
   if(a === 'solve') hwSolvePhoto();
-  if(a === 'more'){ hwCam.batch.push(hwImgFrom(hwCam.shot, hwCam.crop)); hwBackToCam(); }
+  if(a === 'more'){ hwCam.batch.push(Object.assign(hwImgFrom(hwCam.shot, hwCam.crop), {_canvas:hwCam.shot, _crop:hwCam.crop})); hwBackToCam(); }
   if(a === 'solveBatch') hwSolveImgs(hwCam.batch);
 }
 // no celular, abre o app de câmera do próprio aparelho
@@ -6249,6 +6335,8 @@ function hwNativeCamera(){
 async function hwShoot(){
   const v = document.getElementById('hwc-video');
   if(!hwCam.stream) return;
+  // a câmera foi interrompida (ligação, outro app usando a câmera): abre de novo em vez de tirar uma foto vazia
+  if(hwCam.track && hwCam.track.readyState === 'ended'){ hwStopStream(); hwPaintActions(); toast('A câmera tinha parado. Abrindo de novo...'); return hwStartCamera(); }
   if(!v.videoWidth){   // a imagem da câmera ainda não chegou: espera um pouco antes de desistir
     await new Promise(r => { const t = setTimeout(r, 2000); v.addEventListener('loadeddata', () => { clearTimeout(t); r(); }, {once:true}); try{ v.play().catch(() => {}); }catch(err){} });
     if(!hwCam || hwCam.step !== 'cam') return;
@@ -6262,6 +6350,7 @@ async function hwShoot(){
   document.getElementById('hwc-stage').appendChild(fl); setTimeout(() => fl.remove(), 400);
   // guarda só a parte que aparecia na tela (o vídeo é cortado para caber), e o que estava na moldura vira o recorte inicial
   const vx = Math.max(0, -ox / s), vy = Math.max(0, -oy / s), vw = Math.min(c.width - vx, r.width / s), vh = Math.min(c.height - vy, r.height / s);
+  if(vw < 16 || vh < 16) return hwCamMsg('A câmera não mandou a imagem.', 'Feche e abra a câmera de novo, ou use a câmera do aparelho.');
   const shot = document.createElement('canvas'); shot.width = Math.round(vw); shot.height = Math.round(vh);
   shot.getContext('2d').drawImage(c, vx, vy, vw, vh, 0, 0, shot.width, shot.height);
   hwToCrop(shot, {x:(f.left - r.left - ox) / s - vx, y:(f.top - r.top - oy) / s - vy, w:f.width / s, h:f.height / s});
@@ -6369,7 +6458,8 @@ function hwSolvePhoto(){
   hwSolveImgs([...hwCam.batch, hwImgFrom(hwCam.shot, hwCam.crop)]);
 }
 function hwSolveImgs(imgs){
-  closeHwCamera();
+  imgs.forEach(i => { delete i._canvas; delete i._crop; });
+  closeHwCamera(true);
   openHwSolution(hwNewEntry({imgs}));
 }
 
@@ -6516,7 +6606,9 @@ function openHwTyped(){
 
 // ---- solução ----
 let hwCur = null;
-const hwFromSaved = h => ({...h, imgs:[], thumbOnly:h.thumb, data:JSON.parse(JSON.stringify(h.data)), thread:[...(h.thread || [])], sel:0, saved:true});
+// ao reabrir do histórico, nada fica preso em "Explicando..." (o pedido daquela hora não volta mais)
+const hwUnbusy = v => { if(Array.isArray(v)) v.forEach(hwUnbusy); else if(v && typeof v === 'object'){ delete v.busy; delete v.trainBusy; delete v.trainErr; Object.values(v).forEach(hwUnbusy); } return v; };
+const hwFromSaved = h => ({...h, imgs:[], thumbOnly:h.thumb, data:hwUnbusy(JSON.parse(JSON.stringify(h.data))), thread:[...(h.thread || [])], sel:0, saved:true});
 function hwRemember(e){
   // no histórico fica só a miniatura da primeira imagem (e quantas eram)
   const rec = {id:e.id, at:e.at, k:e.k, mode:e.mode, thumb:e.imgs.length ? e.imgs[0].small : e.thumbOnly || null, n:e.imgs.length || e.n || 0, text:e.text, data:e.data, thread:e.thread.filter(m => m.role !== 'err').slice(-20)};
@@ -6853,7 +6945,7 @@ const fileDB = (() => {
     r.onupgradeneeded = () => r.result.createObjectStore('files', {keyPath:'id'});
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   }));
-  const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('files', mode), req = fn(t.objectStore('files')); t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); }); };
+  const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('files', mode), req = fn(t.objectStore('files')); t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abort')); }); };   // espaço cheio (no iPhone) só avisa por "abort"
   return {all:() => run('readonly', s => s.getAll()), get:id => run('readonly', s => s.get(id)), put:rec => run('readwrite', s => s.put(rec)), del:id => run('readwrite', s => s.delete(id))};
 })();
 const fstate = {tab:'', menu:null, busy:null};
@@ -6890,9 +6982,13 @@ function renderFiles(){
 }
 async function fileBlob(i){ const rec = await fileDB.get(FILES[i].id); return rec && rec.blob; }
 async function openFile(i){
+  const w = window.open('', '_blank');     // a aba abre já no toque: depois de esperar o banco, o iPhone bloqueia a abertura
   const blob = await fileBlob(i).catch(() => null);
-  if(!blob) return toast('Não achei o conteúdo desse arquivo neste navegador.');
-  const url = URL.createObjectURL(blob); window.open(url, '_blank', 'noopener'); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  if(!blob){ if(w) w.close(); return toast('Não achei o conteúdo desse arquivo neste navegador.'); }
+  const url = URL.createObjectURL(blob);
+  if(w){ try{ w.opener = null; }catch(err){} w.location.href = url; }
+  else { const a = document.createElement('a'); a.href = url; a.download = FILES[i].name; document.body.appendChild(a); a.click(); a.remove(); }   // sem aba: baixa o arquivo
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 const fMenu = document.getElementById('f-menu');
 function closeFileMenu(){ fstate.menu = null; fMenu.classList.add('hidden'); }
@@ -6965,7 +7061,17 @@ fDrop.addEventListener('drop', e => { e.preventDefault(); fDrag = 0; fOver.class
 // ---------- Calendário ----------
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const EV_TYPES = {prova:{nome:'Prova', cor:'#D65341'}, entrega:{nome:'Entrega', cor:'#E2AC2A'}, estudo:{nome:'Estudo', cor:'#4A7A42'}, meta:{nome:'Metas', cor:'#4B84B4'}};
-const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+let today0 = new Date(); today0.setHours(0, 0, 0, 0);
+// o app pode ficar aberto (ou suspenso no celular) de um dia para o outro: "hoje" é conferido de novo ao trocar de tela e ao voltar ao app
+function rollToday(){
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  if(d.getTime() === today0.getTime()) return false;
+  const was = dkey(today0); today0 = d;
+  if(cal.sel === was) Object.assign(cal, {y:d.getFullYear(), m:d.getMonth(), sel:dkey(d)});
+  try{ refreshStreak(); checkMissions(); }catch(err){}
+  return true;
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && rollToday() && SCREEN_REFRESH[currentScreen]) SCREEN_REFRESH[currentScreen](); });
 const dkey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const fromKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -7239,6 +7345,20 @@ renderBadges();
 // ---------- Modo Foco ----------
 const fo = {mode:'foco', running:false, end:0, left:25 * 60, cycle:1, cfg:{foco:25, pausa:5, longa:15, ciclos:4}};
 const FO_MODES = {foco:'Pomodoro', pausa:'Pausa curta', longa:'Pausa longa'};
+// o celular às vezes recarrega o app quando ele fica em segundo plano: o cronômetro e os tempos escolhidos ficam guardados
+const saveFoco = () => store.set('foco', {mode:fo.mode, running:fo.running, end:fo.end, left:fo.left, cycle:fo.cycle, cfg:fo.cfg});
+(() => {
+  const s = store.get('foco', null); if(!s) return;
+  Object.assign(fo.cfg, s.cfg || {});
+  if(FO_MODES[s.mode]) fo.mode = s.mode;
+  fo.cycle = Math.max(1, Math.min(+s.cycle || 1, fo.cfg.ciclos));
+  fo.running = !!s.running && +s.end > 0; fo.end = +s.end || 0;
+  fo.left = fo.running ? Math.max(0, Math.round((fo.end - Date.now()) / 1000)) : Math.max(0, +s.left || 0) || fo.cfg[fo.mode === 'foco' ? 'foco' : fo.mode] * 60;
+  [['fo-cfg-foco', 'foco'], ['fo-cfg-pausa', 'pausa'], ['fo-cfg-ciclos', 'ciclos']].forEach(([id, k]) => { const el = document.getElementById(id); if(el && [...el.options].some(o => +o.value === fo.cfg[k])) el.value = fo.cfg[k]; });
+})();
+// um som só para o app todo, liberado no toque em Iniciar (o iPhone não deixa tocar som que começa sozinho)
+let foAudio = null;
+const foAudioCtx = () => { try{ foAudio = foAudio || new (window.AudioContext || window.webkitAudioContext)(); if(foAudio.state === 'suspended') foAudio.resume(); }catch(err){} return foAudio; };
 const foTotal = () => ({foco:fo.cfg.foco, pausa:fo.cfg.pausa, longa:fo.cfg.longa}[fo.mode]) * 60;
 const FO_C = 2 * Math.PI * 150;
 const mmss = s => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
@@ -7261,7 +7381,8 @@ function paintFoco(){
 }
 function foBeep(){
   try{
-    const ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
+    const ac = foAudioCtx(); if(!ac) return;
+    const o = ac.createOscillator(), g = ac.createGain();
     o.frequency.value = 660; o.connect(g); g.connect(ac.destination);
     g.gain.setValueAtTime(.18, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .9);
     o.start(); o.stop(ac.currentTime + .9);
@@ -7279,12 +7400,12 @@ function foNext(beep){
     fo.cycle = fo.mode === 'longa' ? 1 : fo.cycle + 1; fo.mode = 'foco';
     if(beep) toast('Pausa acabou. Bora focar.');
   }
-  fo.left = foTotal(); paintFoco();
+  fo.left = foTotal(); paintFoco(); saveFoco();
 }
 function foToggle(){
   if(fo.running){ fo.left = Math.max(0, Math.round((fo.end - Date.now()) / 1000)); fo.running = false; }
-  else { fo.end = Date.now() + fo.left * 1000; fo.running = true; }
-  paintFoco();
+  else { fo.end = Date.now() + fo.left * 1000; fo.running = true; foAudioCtx(); }
+  paintFoco(); saveFoco();
 }
 setInterval(() => {
   if(!fo.running) return;
@@ -7293,13 +7414,13 @@ setInterval(() => {
 }, 250);
 paintFoco();
 document.getElementById('fo-start').addEventListener('click', foToggle);
-document.getElementById('fo-reset').addEventListener('click', () => { fo.running = false; fo.left = foTotal(); paintFoco(); });
+document.getElementById('fo-reset').addEventListener('click', () => { fo.running = false; fo.left = foTotal(); paintFoco(); saveFoco(); });
 document.getElementById('fo-skip').addEventListener('click', () => foNext(false));
-document.getElementById('fo-modes').addEventListener('click', e => { const b = e.target.closest('[data-fomode]'); if(b){ fo.running = false; fo.mode = b.dataset.fomode; fo.left = foTotal(); paintFoco(); } });
+document.getElementById('fo-modes').addEventListener('click', e => { const b = e.target.closest('[data-fomode]'); if(b){ fo.running = false; fo.mode = b.dataset.fomode; fo.left = foTotal(); paintFoco(); saveFoco(); } });
 [['fo-cfg-foco', 'foco'], ['fo-cfg-pausa', 'pausa'], ['fo-cfg-ciclos', 'ciclos']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', e => {
   fo.cfg[k] = +e.target.value; fo.cycle = Math.min(fo.cycle, fo.cfg.ciclos);
   if(!fo.running) fo.left = foTotal();
-  paintFoco();
+  paintFoco(); saveFoco();
 }));
 
 // Atalhos do quadro e do modo foco
@@ -7527,7 +7648,7 @@ document.getElementById('home').addEventListener('click', e => {
   if(a === 'review'){ buildQueue(false); renderFC(); location.hash = 'flashcards'; }
   if(a === 'cards'){ location.hash = 'flashcards'; }
   if(a === 'wrong'){ location.hash = 'questoes'; document.getElementById('q-status').value = 'erradas'; renderQuestions(); }
-  if(a === 'weak'){ const w = weakSubjects()[0]; startSimFromBank(QUESTIONS.filter(q => q.k === w.s.k).sort(() => Math.random() - .5).slice(0, 10), `Treino de ${w.s.nome}`); location.hash = 'simulados'; }
+  if(a === 'weak'){ const w = weakSubjects()[0]; if(startSimFromBank(QUESTIONS.filter(q => q.k === w.s.k).sort(() => Math.random() - .5).slice(0, 10), `Treino de ${w.s.nome}`)) location.hash = 'simulados'; }
 });
 
 // ---------- Perfis: "Quem vai estudar agora?" ----------
@@ -7609,6 +7730,7 @@ const SCREEN_REFRESH = {inicio:() => renderHome(), progresso:() => renderProgres
 // ---------- troca de tela ----------
 function show(id){
   if(!SCREENS.some(s => s.id === id)) id = 'inicio';
+  rollToday();
   currentScreen = id;
   if(id !== 'inicio'){ STATS.lastView = id; saveStats(); }
   if(SCREEN_REFRESH[id]) SCREEN_REFRESH[id]();
@@ -7647,6 +7769,122 @@ const saveChat = () => {
   store.set('chat', CHAT);
 };
 let chatBusy = false, chatErr = null;
+
+// ---------- Conversas salvas ----------
+// A conversa aberta fica em CHAT; as outras ficam guardadas em CHATS, cada uma com o nome que o Zen deu (ou que a pessoa escolheu).
+const CHATS = store.get('chats', []);      // [{id, title, at, upd, msgs}]
+const newChatMeta = () => ({id:'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), title:'', at:Date.now()});
+let chatMeta = store.get('chatAtual', null) || newChatMeta();
+const saveChats = () => {
+  CHATS.sort((a, b) => b.upd - a.upd);
+  if(CHATS.length > 60) CHATS.length = 60;
+  store.set('chats', CHATS); store.set('chatAtual', chatMeta);
+};
+// nome provisório (enquanto o Zen não dá um): o começo da primeira pergunta
+const chatFallbackTitle = msgs => { const u = msgs.find(m => m.role === 'user'); return u ? u.text.replace(/\s+/g, ' ').trim().slice(0, 48) + (u.text.length > 48 ? '...' : '') : 'Conversa'; };
+const chatTitleOf = (meta, msgs) => meta.title || chatFallbackTitle(msgs);
+// guarda a conversa aberta na lista (sem as fotos, que ocupam muito espaço)
+function stashCurrentChat(){
+  if(!CHAT.length) return null;
+  const rec = {id:chatMeta.id, title:chatMeta.title, at:chatMeta.at, upd:Date.now(),
+    msgs:CHAT.map(m => { const c = Object.assign({}, m); if(c.imgs && c.imgs.length){ delete c.imgs; c.imgsGone = true; } return c; })};
+  const i = CHATS.findIndex(c => c.id === rec.id);
+  if(i >= 0) CHATS[i] = rec; else CHATS.push(rec);
+  return rec;
+}
+// o Zen dá um nome curto para a conversa (usa a reserva primeiro, para poupar a cota do modelo principal)
+const chatTitling = new Set();
+async function nameChat(id){
+  const rec = id === chatMeta.id ? {meta:chatMeta, msgs:CHAT} : (c => c && {meta:c, msgs:c.msgs})(CHATS.find(c => c.id === id));
+  if(!rec || rec.meta.title || chatTitling.has(id) || !getKey()) return;
+  const u = rec.msgs.find(m => m.role === 'user'), z = rec.msgs.find(m => m.role === 'model');
+  if(!u || !z) return;
+  chatTitling.add(id);
+  try{
+    const r = await askGemini({prefer:'backup', temperature:0.3, contents:[{role:'user', parts:[{text:`Dê um título curto para esta conversa de estudo, com 2 a 6 palavras em português, que diga o assunto (ex.: "Fórmula de Bhaskara", "Fotossíntese passo a passo"). Responda só com o título, sem aspas, sem ponto final e sem emoji.\n\nAluno: ${u.text.slice(0, 500)}\nZen: ${z.text.slice(0, 700)}`}]}]});
+    const t = r.text.split('\n')[0].replace(/[*_#`"“”'«»]/g, '').replace(/^t[íi]tulo:\s*/i, '').replace(/[.。]+$/, '').trim().slice(0, 60);
+    if(!t) return;
+    const target = id === chatMeta.id ? chatMeta : CHATS.find(c => c.id === id);
+    if(target && !target.title){ target.title = t; saveChats(); paintChatTitle(); if(document.getElementById('cl-list')) paintChatList(); }
+  }catch(err){}     // sem nome do Zen, fica o começo da pergunta
+  finally{ chatTitling.delete(id); }
+}
+function paintChatTitle(){
+  const el = document.getElementById('chat-title');
+  el.textContent = CHAT.length ? chatTitleOf(chatMeta, CHAT) : 'Sua tutora de estudos';
+  el.title = el.textContent;
+  document.getElementById('chat-count').textContent = CHATS.length ? CHATS.length : '';
+}
+// começa uma conversa nova; a atual fica guardada
+function startNewChat(){
+  const rec = stashCurrentChat();
+  if(rec && !rec.title) nameChat(rec.id);
+  CHAT.length = 0; chatErr = null; chatPending = null; chatMeta = newChatMeta();
+  saveChat(); saveChats(); renderChat();
+  if(rec) toast(`Conversa guardada em Conversas: "${chatTitleOf(rec, rec.msgs)}".`);
+}
+function openSavedChat(id){
+  if(chatBusy) return toast('Espere o Zen terminar de responder.');
+  const i = CHATS.findIndex(c => c.id === id); if(i < 0) return;
+  const rec = CHATS[i];
+  stashCurrentChat();
+  CHATS.splice(CHATS.findIndex(c => c.id === id), 1);
+  CHAT.splice(0, CHAT.length, ...rec.msgs);
+  chatMeta = {id:rec.id, title:rec.title, at:rec.at};
+  chatErr = CHAT.length && CHAT[CHAT.length - 1].role === 'user' ? new ZenError('pendente') : null; chatPending = null;
+  saveChat(); saveChats(); closeModal(); location.hash = 'chat'; renderChat();
+  if(!chatMeta.title) nameChat(chatMeta.id);
+}
+const fmtChatDate = ts => { const d = new Date(ts), t = new Date(); return d.toDateString() === t.toDateString() ? `hoje, ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}` : d.toLocaleDateString('pt-BR', {day:'numeric', month:'short'}); };
+function paintChatList(){
+  const el = document.getElementById('cl-list'); if(!el) return;
+  const q = plain(document.getElementById('cl-q').value.trim());
+  const rows = [...(CHAT.length ? [{id:chatMeta.id, title:chatTitleOf(chatMeta, CHAT), upd:Date.now(), n:CHAT.length, cur:true}] : []),
+    ...CHATS.map(c => ({id:c.id, title:chatTitleOf(c, c.msgs), upd:c.upd, n:c.msgs.length}))]
+    .filter(r => !q || plain(r.title).includes(q) || (!r.cur && CHATS.find(c => c.id === r.id).msgs.some(m => plain(m.text).includes(q))));
+  el.innerHTML = rows.length ? rows.map(r => `<li class="flex items-center gap-1 rounded-xl ${r.cur ? 'bg-forest-100' : 'hover:bg-sand'}">
+      <button type="button" data-cl-open="${r.id}" class="flex-1 min-w-0 text-left px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400 rounded-xl">
+        <span class="block font-semibold text-[15px] truncate">${esc(r.title)}</span>
+        <span class="block text-[12.5px] text-muted">${r.cur ? 'Aberta agora' : fmtChatDate(r.upd)}, ${r.n} ${r.n === 1 ? 'mensagem' : 'mensagens'}${chatTitling.has(r.id) ? ', o Zen está dando um nome...' : ''}</span>
+      </button>
+      <button type="button" data-cl-ren="${r.id}" class="w-10 h-10 shrink-0 rounded-lg grid place-items-center text-ink-2 hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Renomear ${esc(r.title)}" title="Renomear"><svg class="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.2-4.2L16 5l3 3L8.2 18.8z"/></svg></button>
+      <button type="button" data-cl-del="${r.id}" class="w-10 h-10 shrink-0 rounded-lg grid place-items-center text-ink-2 hover:bg-paper hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" aria-label="Apagar ${esc(r.title)}" title="Apagar"><svg class="w-[17px] h-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    </li>`).join('')
+    : `<li class="px-3 py-6 text-center text-[14px] text-muted">${q ? 'Nenhuma conversa com isso.' : 'Ainda não tem conversas guardadas. Quando você começar uma nova, a atual fica aqui, com um nome que o Zen dá.'}</li>`;
+}
+function openChatList(){
+  openModal(`${modalHead('Conversas')}
+    <div class="mt-4 flex flex-wrap gap-2">
+      <label class="flex-1 min-w-[180px]"><span class="sr-only">Procurar nas conversas</span><input id="cl-q" type="search" class="${fieldCls}" placeholder="Procurar pelo nome ou pelo que foi dito"></label>
+      <button type="button" data-cl-new class="${btnPrimary}">Nova conversa</button>
+    </div>
+    <ul id="cl-list" class="mt-3 space-y-1 max-h-[55vh] overflow-y-auto thin-scroll pr-1"></ul>`);
+  paintChatList();
+  document.getElementById('cl-q').addEventListener('input', paintChatList);
+  document.getElementById('modal-box').onclick = e => {
+    if(e.target.closest('[data-cl-new]')){ if(chatBusy) return toast('Espere o Zen terminar de responder.'); startNewChat(); closeModal(); location.hash = 'chat'; chatInput.focus(); return; }
+    const o = e.target.closest('[data-cl-open]');
+    if(o){ if(o.dataset.clOpen === chatMeta.id){ closeModal(); location.hash = 'chat'; } else openSavedChat(o.dataset.clOpen); return; }
+    const rn = e.target.closest('[data-cl-ren]');
+    if(rn){
+      const id = rn.dataset.clRen, cur = id === chatMeta.id, rec = cur ? chatMeta : CHATS.find(c => c.id === id); if(!rec) return;
+      const t = prompt('Nome da conversa:', chatTitleOf(rec, cur ? CHAT : rec.msgs));
+      if(t === null) return;
+      rec.title = t.trim().slice(0, 60); saveChats(); paintChatList(); paintChatTitle();
+      if(!rec.title) nameChat(id);     // apagou o nome: o Zen dá outro
+      return;
+    }
+    const dl = e.target.closest('[data-cl-del]');
+    if(dl){
+      const id = dl.dataset.clDel;
+      if(!confirm('Apagar esta conversa? Não tem volta.')) return;
+      if(id === chatMeta.id){ if(chatBusy) return toast('Espere o Zen terminar de responder.'); CHAT.length = 0; chatErr = null; chatPending = null; chatMeta = newChatMeta(); saveChat(); renderChat(); }
+      else CHATS.splice(CHATS.findIndex(c => c.id === id), 1);
+      saveChats(); paintChatList(); paintChatTitle();
+    }
+  };
+}
+document.getElementById('chat-list').addEventListener('click', openChatList);
 // Personalidade do Zen + o que o app sabe agora (sequência, provas, pontos fracos e boletim)
 function weakSubjects(){
   const acc = {};
@@ -7704,6 +7942,7 @@ function renderChat(){
   log.scrollTop = log.scrollHeight;
   document.getElementById('chat-suggest').innerHTML = CHAT.length ? '' : CHAT_SUGGEST.map(s => `<button type="button" data-suggest class="shrink-0 rounded-full border border-line bg-paper px-3.5 py-1.5 text-[13.5px] text-ink-2 hover:bg-sand focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400">${esc(s)}</button>`).join('');
   document.getElementById('chat-send').disabled = chatBusy;
+  paintChatTitle();
 }
 let chatPending = null;     // fotos em tamanho bom da última mensagem (as antigas vão em miniatura)
 async function sendChat(text, imgs){
@@ -7713,6 +7952,7 @@ async function sendChat(text, imgs){
     if(imgs && imgs.length) m.imgs = imgs.map(i => i.thumb);
     chatPending = imgs && imgs.length ? imgs : null;
     CHAT.push(m); saveChat(); STATS.chatMessages++; addXP(XP.chat, 'chat');
+    if(CHAT.length === 1){ chatMeta.at = Date.now(); store.set('chatAtual', chatMeta); }
   }
   if(!CHAT.length || CHAT[CHAT.length - 1].role !== 'user') return;
   chatErr = null; chatBusy = true; renderChat();
@@ -7726,6 +7966,7 @@ async function sendChat(text, imgs){
     const r = await askGemini({contents, system:zenSystemPrompt()});
     CHAT.push({role:'model', text:r.text, time:nowTime(), model:r.model}); chatPending = null; saveChat();
     if(r.model !== SETTINGS.main) toast(`O modelo principal não respondeu, então o Zen usou a reserva (${modelName(r.model)}).`);
+    if(!chatMeta.title) nameChat(chatMeta.id);     // primeira resposta: o Zen dá um nome para a conversa
   }catch(err){ chatErr = err; }
   chatBusy = false; renderChat();
 }
@@ -7780,13 +8021,18 @@ document.getElementById('chat-log').addEventListener('click', async e => {
 });
 document.getElementById('chat-suggest').addEventListener('click', e => { const b = e.target.closest('[data-suggest]'); if(b) sendChat(b.textContent); });
 document.getElementById('chat-new').addEventListener('click', () => {
-  if(chatBusy || !CHAT.length) return;
-  if(!confirm('Começar uma conversa nova? A conversa atual será apagada.')) return;
-  CHAT.length = 0; chatErr = null; saveChat(); renderChat(); chatInput.focus();
+  if(chatBusy) return toast('Espere o Zen terminar de responder.');
+  if(!CHAT.length) return chatInput.focus();
+  startNewChat(); chatInput.focus();     // a atual não some: fica em Conversas
 });
 // se a última mensagem ficou sem resposta (erro, aba fechada), oferece responder agora
 if(CHAT.length && CHAT[CHAT.length - 1].role === 'user') chatErr = new ZenError('pendente');
 renderChat();
+// conversa ainda sem nome (de antes desta versão, ou o nome não veio): o Zen tenta de novo
+if(USER && CHAT.length){
+  if(!store.get('chatAtual', null)) store.set('chatAtual', chatMeta);
+  if(!chatMeta.title) setTimeout(() => nameChat(chatMeta.id), 4000);
+}
 paintKeyStatus();
 // o KaTeX carrega depois da página: quando chegar, desenha as fórmulas que já estão na tela
 // O KaTeX chega depois: redesenha o chat e a tela aberta para as fórmulas aparecerem
@@ -7808,7 +8054,12 @@ document.getElementById('modal').addEventListener('click', e => {
   if(document.getElementById('modal').dataset.lock) return;
   if(e.target.closest('[data-close]') || e.target.id === 'modal' || e.target === document.getElementById('modal').firstElementChild) closeModal();
 });
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('modal').classList.contains('hidden') && !document.getElementById('modal').dataset.lock) closeModal(); });
+// Esc fecha só o que está por cima: se a câmera, a imagem ampliada ou o duelo estão abertos, eles cuidam do Esc
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Escape' || e.defaultPrevented || document.getElementById('modal').classList.contains('hidden') || document.getElementById('modal').dataset.lock) return;
+  if(document.getElementById('hw-cam') || document.querySelector('[aria-label="Imagem ampliada"]')) return;
+  closeModal();
+});
 </script>
 </body>
 </html>
