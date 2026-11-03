@@ -409,7 +409,9 @@
             </div>
           </header>
 
-          <div class="mt-8 max-w-[680px] mx-auto">
+          <!-- escolher a matéria (rola para o lado quando não cabe) -->
+          <div class="mt-6 x-scroll overflow-x-auto pb-1.5"><div id="fc-subjs" class="w-max mx-auto flex gap-1.5" role="group" aria-label="Matéria dos cartões"></div></div>
+          <div class="mt-5 max-w-[680px] mx-auto">
             <!-- pilha: dois cartões atrás espiando, como na imagem -->
             <div class="relative pl-4 pt-3">
               <div class="absolute left-0 top-0 right-4 bottom-3 rounded-2xl bg-paper border border-line" aria-hidden="true"></div>
@@ -2751,11 +2753,20 @@ const RATES = [
   {label:'Bom',     bg:'#E2AC2A'},
   {label:'Fácil',   bg:'#44763B'}
 ];
-const fcs = {queue:[], done:0, total:0, revealed:false, counts:[0, 0, 0, 0]};
+const fcs = {queue:[], done:0, total:0, revealed:false, counts:[0, 0, 0, 0], k:''};     // k: matéria escolhida ('' = todas)
+// botões de matéria: só as que têm cartões, com quantos estão para revisar agora
+function paintFcSubjects(){
+  const el = document.getElementById('fc-subjs'), now = Date.now();
+  const ks = SUBJECTS.filter(s => CARDS.some(c => c.k === s.k));
+  if(fcs.k && !ks.some(s => s.k === fcs.k)) fcs.k = '';
+  const due = k => CARDS.filter(c => (!k || c.k === k) && (c.due || 0) <= now).length;
+  el.parentElement.classList.toggle('hidden', ks.length < 2);
+  el.innerHTML = [{k:'', nome:'Todas'}, ...ks].map(s => pillBtn(`data-fck="${s.k}"`, `${esc(s.nome)}<span class="ml-1.5 text-[12px] tabular-nums opacity-70">${due(s.k)}</span>`, s.k === fcs.k)).join('');
+}
 const dayWord = n => n === 1 ? '1 dia' : `${n} dias`;
 function buildQueue(all){
   const now = Date.now();
-  fcs.queue = CARDS.filter(c => all || (c.due || 0) <= now).sort((a, b) => (a.due || 0) - (b.due || 0)).map(c => c.id);
+  fcs.queue = CARDS.filter(c => (!fcs.k || c.k === fcs.k) && (all || (c.due || 0) <= now)).sort((a, b) => (a.due || 0) - (b.due || 0)).map(c => c.id);
   // só vale como "Revisão do dia" a fila dos cartões que estavam para revisar (não o "recomeçar tudo" nem uma fila vazia)
   Object.assign(fcs, {done:0, total:fcs.queue.length, revealed:false, counts:[0, 0, 0, 0], daily:!all && fcs.queue.length > 0});
 }
@@ -2795,9 +2806,9 @@ function renderFC(animate){
   }
   document.getElementById('fc-count').textContent = `${fcs.done} / ${fcs.total}`;
   document.getElementById('fc-bar').style.width = `${fcs.total ? fcs.done / fcs.total * 100 : 0}%`;
-  const dueNow = CARDS.filter(x => (x.due || 0) <= Date.now()).length;
-  document.getElementById('fc-info').textContent = `${CARDS.length} ${CARDS.length === 1 ? 'cartão' : 'cartões'} no baralho, ${dueNow} para revisar agora.`;
-  renderCardList();
+  const mine = CARDS.filter(x => !fcs.k || x.k === fcs.k), dueNow = mine.filter(x => (x.due || 0) <= Date.now()).length;
+  document.getElementById('fc-info').textContent = `${mine.length} ${mine.length === 1 ? 'cartão' : 'cartões'}${fcs.k ? ` de ${subjectOf(fcs.k).nome}` : ' no baralho'}, ${dueNow} para revisar agora.`;
+  paintFcSubjects(); renderCardList();
   if(animate){ card.classList.remove('screen-enter'); void card.offsetWidth; card.classList.add('screen-enter'); }
 }
 function flipFC(){ if(!currentCard() || fcs.revealed) return; fcs.revealed = true; renderFC(); const b = document.querySelector('#fc-rate [data-rate="2"]'); if(b) b.focus(); }
@@ -2818,14 +2829,15 @@ function rateFC(i){
   const t = dayKey();
   STATS.flashcardsReviewed++; STATS.fcLog[t] = (STATS.fcLog[t] || 0) + 1;
   addXP(XP.flashcardRevisado, 'flashcard', subjectOf(c.k)); logMinutes(0.5, c.k);
-  if(!fcs.queue.length && fcs.total && fcs.daily) finishDailyReview();
+  // revendo uma matéria só: vale como Revisão do dia quando não sobrou cartão para revisar em nenhuma matéria
+  if(!fcs.queue.length && fcs.total && fcs.daily && !dueCards().length) finishDailyReview();
   saveCards(); renderFC(true);
   document.getElementById('fc-reveal').focus();
 }
 function renderCardList(){
   const list = document.getElementById('fc-list');
   if(list.classList.contains('hidden')) return;
-  list.innerHTML = CARDS.map(c => { const s = subjectOf(c.k) || SUBJECTS[0]; return `<li class="flex items-start gap-3 px-4 py-3">
+  list.innerHTML = CARDS.filter(c => !fcs.k || c.k === fcs.k).map(c => { const s = subjectOf(c.k) || SUBJECTS[0]; return `<li class="flex items-start gap-3 px-4 py-3">
       <span class="mt-2 w-2 h-2 rounded-full shrink-0" style="background:${s.cor}"></span>
       <div class="flex-1 min-w-0"><p class="font-semibold text-[15px]">${esc(c.f)}</p><p class="text-[14px] text-ink-2">${esc(c.v)}</p>
         <p class="text-[12.5px] text-muted">${(c.due || 0) <= Date.now() ? 'Para revisar agora' : `Volta em ${new Date(c.due).toLocaleDateString('pt-BR')}`}</p></div>
@@ -2905,6 +2917,10 @@ document.getElementById('fc-card').addEventListener('click', flipFC);
 document.getElementById('fc-reveal').addEventListener('click', flipFC);
 document.getElementById('fc-rate').addEventListener('click', e => { const b = e.target.closest('[data-rate]'); if(b) rateFC(+b.dataset.rate); });
 document.getElementById('fc-restart').addEventListener('click', () => { buildQueue(true); renderFC(true); });
+document.getElementById('fc-subjs').addEventListener('click', e => {
+  const b = e.target.closest('[data-fck]'); if(!b || b.dataset.fck === fcs.k) return;
+  fcs.k = b.dataset.fck; buildQueue(false); renderFC(true);
+});
 document.getElementById('fc-new').addEventListener('click', openCardEditor);
 document.getElementById('fc-gen').addEventListener('click', openCardGenerator);
 document.getElementById('fc-list-btn').addEventListener('click', e => {
@@ -3128,11 +3144,32 @@ document.getElementById('sim-answer').addEventListener('click', () => {
 });
 // voltar para a escolha de um simulado novo (Zen ou banco)
 function simChooser(){ sim.data = null; sim.finished = false; saveSim(); renderSim(); }
+// simulado com as questões do banco: escolhe a matéria e quantas (primeiro as que errou, depois as novas, por último as que acertou)
+function openBankSim(){
+  const ks = SUBJECTS.map(s => ({s, n:QUESTIONS.filter(q => q.k === s.k).length})).filter(x => x.n);
+  openModal(`${modalHead('Simulado do seu banco')}
+    <form id="bs-form" class="mt-4 space-y-3.5" autocomplete="off">
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="text-[13.5px] font-semibold text-ink-2">Matéria<select id="bs-mat" class="${fieldCls} mt-1 font-normal"><option value="">Todas misturadas (${QUESTIONS.length})</option>${ks.map(x => `<option value="${x.s.k}">${esc(x.s.nome)} (${x.n})</option>`).join('')}</select></label>
+        <label class="text-[13.5px] font-semibold text-ink-2">Questões<select id="bs-n" class="${fieldCls} mt-1 font-normal"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label>
+      </div>
+      <p class="text-[13px] text-muted">Entram primeiro as que você errou, depois as que ainda não fez. 3 minutos por questão.</p>
+      <div class="flex justify-end gap-2"><button type="button" data-close class="${btnSoft}">Cancelar</button><button class="${btnPrimary}">Começar</button></div>
+    </form>`);
+  document.getElementById('bs-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const k = document.getElementById('bs-mat').value, n = +document.getElementById('bs-n').value, s = subjectOf(k);
+    const rank = q => lastTry(q) ? (lastTry(q).ok ? 2 : 0) : 1;
+    const list = QUESTIONS.filter(q => !k || q.k === k).sort((a, b) => rank(a) - rank(b) || Math.random() - .5).slice(0, n);
+    closeModal();
+    if(startSimFromBank(list, k && s ? `Simulado de ${s.nome}` : 'Simulado do seu banco', true) && list.length < n) toast(`Só tinha ${list.length} ${list.length === 1 ? 'questão' : 'questões'} dessa matéria no banco.`);
+  });
+}
 document.getElementById('sim-result').addEventListener('click', e => {
   const st = e.target.closest('[data-simstart]');
   if(st){
     if(st.dataset.simstart === 'zen') return openSimGenerator();
-    return startSimFromBank(QUESTIONS.slice().sort((a, b) => (lastTry(a) ? (lastTry(a).ok ? 2 : 0) : 1) - (lastTry(b) ? (lastTry(b).ok ? 2 : 0) : 1) || Math.random() - .5).slice(0, 15), 'Simulado do seu banco', true);
+    return openBankSim();
   }
   const b = e.target.closest('[data-res]'); if(!b) return;
   if(b.dataset.res === 'redo') resetSim(sim.data);
