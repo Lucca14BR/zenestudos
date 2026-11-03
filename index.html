@@ -68,6 +68,9 @@
   .xp-fill { background: linear-gradient(90deg, #2F4F2D 0%, #4A7A42 60%, #6E9A55 100%); }
   .no-scrollbar::-webkit-scrollbar { display:none; }
   .no-scrollbar { scrollbar-width:none; }
+  .x-scroll { scrollbar-width:thin; scrollbar-color:#E2DCCB transparent; }
+  .x-scroll::-webkit-scrollbar { height:6px; }
+  .x-scroll::-webkit-scrollbar-thumb { background:#E2DCCB; border-radius:6px; }
   .side-scroll { scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.18) transparent; }
   .side-scroll::-webkit-scrollbar { width:6px; }
   .side-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.18); border-radius:6px; }
@@ -895,8 +898,9 @@
           </header>
 
           <nav class="mt-5" aria-label="Seções e páginas">
-            <div id="nt-tree" class="flex justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar"></div>
-            <div id="nt-pages-m" class="mt-2.5 flex justify-start sm:justify-center gap-1.5 overflow-x-auto no-scrollbar"></div>
+            <!-- as listas rolam para o lado quando não cabem (no meio só quando sobra espaço, senão o começo ficava cortado) -->
+            <div class="x-scroll overflow-x-auto pb-1.5"><div id="nt-tree" class="w-max mx-auto flex gap-1.5"></div></div>
+            <div class="x-scroll overflow-x-auto pb-1.5 mt-1.5"><div id="nt-pages-m" class="w-max mx-auto flex gap-1.5"></div></div>
           </nav>
 
           <div class="mt-5">
@@ -906,6 +910,7 @@
               <div class="mt-2 flex items-baseline justify-between gap-4">
                 <h2 id="nt-title" contenteditable="true" spellcheck="false" class="flex-1 min-w-0 text-[28px] sm:text-[32px] font-extrabold tracking-tight leading-tight outline-none" aria-label="Título da página"></h2>
                 <span id="nt-date" class="hidden sm:block text-[13px] text-muted tabular-nums shrink-0"></span>
+                <button id="nt-del" type="button" class="self-center w-10 h-10 shrink-0 rounded-lg grid place-items-center text-ink-2 hover:bg-sand hover:text-[#B4472F] focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-400" title="Apagar anotação" aria-label="Apagar esta anotação"><svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
               </div>
               <p id="nt-meta" class="mt-1.5 text-[13px] text-muted"></p>
               <div id="nt-editor" class="nt-ed mt-6" contenteditable="true" spellcheck="true" aria-label="Conteúdo da página"></div>
@@ -3991,6 +3996,24 @@ function newNotePage(){
   ntTitle.focus();
 }
 document.getElementById('nt-new').addEventListener('click', newNotePage);
+// apagar a anotação aberta (depois abre a próxima da mesma seção)
+document.getElementById('nt-del').addEventListener('click', () => {
+  const n = ntNote(); if(!n) return;
+  if(!confirm(`Apagar a anotação "${n.title || 'Sem título'}"? Não tem volta.`)) return;
+  const i = NOTES.indexOf(n); NOTES.splice(i, 1);
+  nt.page = null; saveNotes();
+  const next = NOTES.filter(x => x.sec === n.sec)[0];
+  if(next) openPage(next.id); else showNotesEmpty();
+  toast(`Anotação "${n.title || 'Sem título'}" apagada.`);
+});
+// no computador, a rodinha do mouse também rola para o lado as listas que não cabem (seções, páginas, filtros)
+document.addEventListener('wheel', e => {
+  if(e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const row = e.target.closest && e.target.closest('.x-scroll, .overflow-x-auto');
+  if(!row || row.scrollWidth <= row.clientWidth + 1 || row.scrollHeight > row.clientHeight + 1) return;
+  const before = row.scrollLeft; row.scrollLeft += e.deltaY;
+  if(row.scrollLeft !== before) e.preventDefault();     // chegou no fim: deixa a página rolar normal
+}, {passive:false});
 // cria uma página a partir de markdown (resposta do chat, Ferramentas do Zen, resumo de arquivo)
 function createNoteFromMarkdown(title, text, icon, sec){
   saveCurrent();
